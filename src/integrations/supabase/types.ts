@@ -14,7 +14,149 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      appointments: {
+        Row: {
+          booking_type: string
+          created_at: string
+          customer_id: string
+          id: string
+          notes: string | null
+          scheduled_time: string
+          service_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          booking_type?: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          notes?: string | null
+          scheduled_time: string
+          service_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          booking_type?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          notes?: string | null
+          scheduled_time?: string
+          service_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_queue: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          queue_date: string
+          queue_position: number
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          queue_date?: string
+          queue_position: number
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          queue_date?: string
+          queue_position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_queue_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string
+          id: string
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          full_name: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      services: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration_minutes: number
+          id: string
+          is_active: boolean
+          name: string
+          price: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration_minutes: number
+          id?: string
+          is_active?: boolean
+          name: string
+          price: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
