@@ -134,56 +134,31 @@ export function SchedulingCalendar({ selectedServices, user, onBack, onScheduled
         throw new Error("Este turno está lotado. Escolha outro horário.");
       }
 
-      // Calculate scheduled time (start of slot + occupancy * average service time)
-      const slotStartTime = new Date(`${format(selectedDate, 'yyyy-MM-dd')} ${slot.startTime}`);
-      const avgServiceTime = 30; // 30 minutes average per service
-      const scheduledTime = new Date(slotStartTime.getTime() + (occupancy * avgServiceTime * 60000));
+      // Criar preferência de pagamento no Mercado Pago
+      const { data: preferenceData, error: preferenceError } = await supabase.functions.invoke(
+        'mp-create-appointment-preference',
+        {
+          body: {
+            service_ids: selectedServices,
+            scheduled_date: format(selectedDate, 'yyyy-MM-dd'),
+            time_slot: selectedSlot
+          }
+        }
+      );
 
-      // Create appointments for each service
-      const appointmentPromises = selectedServices.map(async (serviceId) => {
-        const { data: appointment, error } = await supabase
-          .from('appointments')
-          .insert({
-            customer_id: profile.id,
-            service_id: serviceId,
-            scheduled_time: scheduledTime.toISOString(),
-            status: 'scheduled',
-            booking_type: 'app'
-          })
-          .select()
-          .single();
+      if (preferenceError) {
+        throw new Error(preferenceError.message || 'Erro ao criar preferência de pagamento');
+      }
 
-        if (error) throw error;
-
-        // Add to daily queue
-        const { error: queueError } = await supabase
-          .from('daily_queue')
-          .insert({
-            appointment_id: appointment.id,
-            queue_position: occupancy + 1,
-            queue_date: format(selectedDate, 'yyyy-MM-dd')
-          });
-
-        if (queueError) throw queueError;
-        
-        return appointment;
-      });
-
-      await Promise.all(appointmentPromises);
-
-      toast({
-        title: "Agendamento realizado!",
-        description: `Seus serviços foram agendados para ${format(selectedDate, "dd 'de' MMMM", { locale: pt })} no turno da ${slot.label.toLowerCase()}.`
-      });
+      // Redirecionar para o Mercado Pago
+      window.location.href = preferenceData.init_point;
       
-      onScheduled();
     } catch (error: any) {
       toast({
-        title: "Erro ao agendar",
+        title: "Erro ao processar pagamento",
         description: error.message || "Tente novamente.",
         variant: "destructive"
       });
-    } finally {
       setIsBooking(false);
     }
   };
@@ -324,7 +299,7 @@ export function SchedulingCalendar({ selectedServices, user, onBack, onScheduled
               onClick={handleSchedule}
               disabled={isBooking}
             >
-              {isBooking ? "Agendando..." : "CONFIRMAR AGENDAMENTO"}
+              {isBooking ? "Redirecionando..." : "PAGAR E CONFIRMAR AGENDAMENTO"}
             </Button>
             <p className="text-center text-sm text-muted-foreground mt-2">
               Agendamento para {format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: pt })} 

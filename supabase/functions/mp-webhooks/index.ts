@@ -106,11 +106,42 @@ async function processPaymentWebhook(supabase: any, data: any) {
     console.log('Processando pagamento:', paymentId)
 
     // Buscar detalhes do pagamento via API MP
-    // Precisaria do access_token do vendedor, mas como não sabemos qual vendedor,
-    // vamos buscar o pedido pela preference_id quando possível
+    // Vamos buscar agendamentos pendentes pela external_reference ou notes
     
-    // Por ora, vamos apenas logar
-    console.log('Pagamento atualizado:', paymentId)
+    // Por ora, vamos verificar se há agendamentos pendentes e aprovar
+    const { data: pendingAppointments, error } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('status', 'pending_payment')
+      .contains('notes', paymentId.toString())
+
+    if (error) {
+      console.error('Erro ao buscar agendamentos pendentes:', error)
+      return
+    }
+
+    if (pendingAppointments && pendingAppointments.length > 0) {
+      console.log('Confirmando agendamentos após pagamento aprovado')
+      
+      for (const appointment of pendingAppointments) {
+        // Atualizar status do agendamento
+        const { error: updateError } = await supabase
+          .from('appointments')
+          .update({ 
+            status: 'scheduled',
+            notes: `Pagamento confirmado: ${paymentId}`
+          })
+          .eq('id', appointment.id)
+
+        if (updateError) {
+          console.error('Erro ao atualizar agendamento:', updateError)
+        } else {
+          console.log('Agendamento confirmado:', appointment.id)
+        }
+      }
+    }
+    
+    console.log('Pagamento processado:', paymentId)
     
   } catch (error) {
     console.error('Erro ao processar payment webhook:', error)

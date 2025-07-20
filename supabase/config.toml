@@ -37,6 +37,9 @@ verify_jwt = false
 [functions.mp-create-preference]
 verify_jwt = true
 
+[functions.mp-create-appointment-preference]
+verify_jwt = true
+
 [functions.mp-webhooks]
 verify_jwt = false
 
