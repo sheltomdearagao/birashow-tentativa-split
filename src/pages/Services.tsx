@@ -8,13 +8,12 @@ import { useToast } from "@/hooks/use-toast";
 
 interface ServicesProps {
   onBack: () => void;
-  onServiceSelected: (serviceId: string) => void;
+  onProceedToScheduling: (serviceIds: string[]) => void;
   user: any;
 }
 
-export function Services({ onBack, onServiceSelected, user }: ServicesProps) {
-  const [selectedService, setSelectedService] = useState<string | null>(null);
-  const [isBooking, setIsBooking] = useState(false);
+export function Services({ onBack, onProceedToScheduling, user }: ServicesProps) {
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const { toast } = useToast();
 
   const { data: services, isLoading } = useQuery({
@@ -46,65 +45,34 @@ export function Services({ onBack, onServiceSelected, user }: ServicesProps) {
     enabled: !!user
   });
 
-  const handleSchedule = async () => {
-    if (!selectedService || !profile) return;
-    
-    setIsBooking(true);
-    
-    try {
-      // Criar agendamento
-      const scheduledTime = new Date();
-      scheduledTime.setHours(scheduledTime.getHours() + 1); // Agendar para 1 hora a partir de agora
-      
-      const { data: appointment, error: appointmentError } = await supabase
-        .from('appointments')
-        .insert({
-          customer_id: profile.id,
-          service_id: selectedService,
-          scheduled_time: scheduledTime.toISOString(),
-          status: 'scheduled',
-          booking_type: 'app'
-        })
-        .select()
-        .single();
+  const handleServiceToggle = (serviceId: string) => {
+    setSelectedServices(prev => {
+      if (prev.includes(serviceId)) {
+        return prev.filter(id => id !== serviceId);
+      } else {
+        return [...prev, serviceId];
+      }
+    });
+  };
 
-      if (appointmentError) throw appointmentError;
+  const getTotalPrice = () => {
+    if (!services) return 0;
+    return selectedServices.reduce((total, serviceId) => {
+      const service = services.find(s => s.id === serviceId);
+      return total + (service?.price || 0);
+    }, 0);
+  };
 
-      // Adicionar à fila do dia
-      const { data: queueData, error: queueError } = await supabase
-        .from('daily_queue')
-        .select('queue_position')
-        .eq('queue_date', new Date().toISOString().split('T')[0])
-        .order('queue_position', { ascending: false })
-        .limit(1);
-
-      const nextPosition = queueData?.[0]?.queue_position ? queueData[0].queue_position + 1 : 1;
-
-      const { error: queueInsertError } = await supabase
-        .from('daily_queue')
-        .insert({
-          appointment_id: appointment.id,
-          queue_position: nextPosition,
-          queue_date: new Date().toISOString().split('T')[0]
-        });
-
-      if (queueInsertError) throw queueInsertError;
-
+  const handleProceedToScheduling = () => {
+    if (selectedServices.length === 0) {
       toast({
-        title: "Agendamento realizado!",
-        description: `Você está na posição ${nextPosition} da fila.`
-      });
-      
-      onServiceSelected(selectedService);
-    } catch (error: any) {
-      toast({
-        title: "Erro ao agendar",
-        description: error.message || "Tente novamente.",
+        title: "Selecione pelo menos um serviço",
+        description: "Escolha os serviços que deseja agendar.",
         variant: "destructive"
       });
-    } finally {
-      setIsBooking(false);
+      return;
     }
+    onProceedToScheduling(selectedServices);
   };
 
   if (isLoading) {
@@ -147,40 +115,35 @@ export function Services({ onBack, onServiceSelected, user }: ServicesProps) {
             <ServiceCard
               key={service.id}
               service={service}
-              onSelect={setSelectedService}
-              isSelected={selectedService === service.id}
+              onSelect={handleServiceToggle}
+              isSelected={selectedServices.includes(service.id)}
             />
           ))}
         </div>
 
-        {selectedService && (
-          <div className="fixed bottom-4 left-4 right-4 md:relative md:bottom-auto md:left-auto md:right-auto">
-            <div className="bg-gradient-card p-4 rounded-lg border border-border shadow-card">
-              <div className="text-center mb-4">
-                <h3 className="font-semibold text-lg mb-2">Valor Total dos Serviços</h3>
-                <div className="text-3xl font-bold text-primary">
-                  {services?.find(s => s.id === selectedService) && 
-                    new Intl.NumberFormat('pt-BR', {
-                      style: 'currency',
-                      currency: 'BRL'
-                    }).format(services.find(s => s.id === selectedService)!.price)
-                  }
-                </div>
-              </div>
-              
-              <Button 
-                variant="premium" 
-                className="w-full" 
-                size="lg"
-                onClick={handleSchedule}
-                disabled={isBooking}
-              >
-                <Calendar className="w-5 h-5 mr-2" />
-                {isBooking ? "Agendando..." : "Agendar Agora"}
-              </Button>
+        {/* Total and Proceed Section */}
+        <div className="bg-gradient-card p-6 rounded-lg border border-border shadow-card">
+          <div className="text-center mb-4">
+            <h3 className="font-semibold text-lg mb-2">Valor Total dos Serviços</h3>
+            <div className="text-3xl font-bold text-primary">
+              {new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+              }).format(getTotalPrice())}
             </div>
           </div>
-        )}
+          
+          <Button 
+            variant={selectedServices.length > 0 ? "premium" : "outline"} 
+            className="w-full" 
+            size="lg"
+            onClick={handleProceedToScheduling}
+            disabled={selectedServices.length === 0}
+          >
+            <Calendar className="w-5 h-5 mr-2" />
+            {selectedServices.length > 0 ? "PROSSEGUIR PARA AGENDAMENTO" : "SELECIONE UM SERVIÇO"}
+          </Button>
+        </div>
       </div>
     </div>
   );
