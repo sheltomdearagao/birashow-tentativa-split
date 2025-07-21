@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AuthForm } from "@/components/AuthForm";
 import { SchedulingCalendar } from "@/components/SchedulingCalendar";
-import { Scissors, User, MapPin, Clock, Phone } from "lucide-react";
+import { Scissors, User, MapPin, Clock, Phone, Navigation } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
@@ -80,6 +80,11 @@ const Index = () => {
         ? prev.filter(id => id !== serviceId)
         : [...prev, serviceId]
     );
+  };
+
+  const openDirections = () => {
+    const googleMapsUrl = 'https://www.google.com/maps/dir//R.+Heide+Carneiro,+50+-+Trobogy,+Salvador+-+BA,+41745-135';
+    window.open(googleMapsUrl, '_blank');
   };
 
   const handleProceedToScheduling = () => {
@@ -198,6 +203,39 @@ const Index = () => {
             </div>
           </div>
         )}
+
+        {/* Localização da Barbearia */}
+        <div className="mb-6">
+          <Card>
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <MapPin className="w-5 h-5" />
+                  Nossa Localização
+                </h3>
+                <Button onClick={openDirections} size="sm">
+                  <Navigation className="w-4 h-4 mr-2" />
+                  Como Chegar
+                </Button>
+              </div>
+              <div className="w-full h-64 rounded-lg overflow-hidden">
+                <iframe 
+                  src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d1169.6372364937565!2d-38.4057596!3d-12.9293001!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x71610b41b2a5cc1%3A0x82a85e5736a1f597!2sR.%20Heide%20Carneiro%2C%2050%20-%20Trobogy%2C%20Salvador%20-%20BA%2C%2041745-135!5e1!3m2!1spt-BR!2sbr!4v1753121176658!5m2!1spt-BR!2sbr" 
+                  width="100%" 
+                  height="100%" 
+                  style={{border:0}} 
+                  allowFullScreen={true}
+                  loading="lazy" 
+                  referrerPolicy="no-referrer-when-downgrade"
+                  title="Localização da Barbearia"
+                />
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                R. Heide Carneiro, 50 - Trobogy, Salvador - BA
+              </p>
+            </div>
+          </Card>
+        </div>
 
         {/* Informações da Barbearia */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">

@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Calendar, Clock, User, Phone, Mail, Edit2, Check, X, CheckCircle } from "lucide-react";
-import MapView from "@/components/MapView";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -236,9 +235,6 @@ const Perfil = () => {
             </div>
           </CardContent>
         </Card>
-
-        {/* Mapa da Barbearia */}
-        <MapView />
 
         {/* Histórico de Agendamentos */}
         <Card>
