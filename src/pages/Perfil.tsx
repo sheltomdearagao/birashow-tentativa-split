@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Calendar, Clock, User, Phone, Mail, Edit2, Check, X } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, User, Phone, Mail, Edit2, Check, X, CheckCircle } from "lucide-react";
+import MapView from "@/components/MapView";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -126,11 +127,21 @@ const Perfil = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'scheduled': return 'text-primary bg-primary/10';
-      case 'completed': return 'text-green-600 bg-green-100';
-      case 'cancelled': return 'text-destructive bg-destructive/10';
-      case 'pending_payment': return 'text-yellow-600 bg-yellow-100';
-      default: return 'text-muted-foreground bg-muted';
+      case 'scheduled': return 'text-primary';
+      case 'completed': return 'text-green-600';
+      case 'cancelled': return 'text-destructive';
+      case 'pending_payment': return 'text-yellow-600';
+      default: return 'text-muted-foreground';
+    }
+  };
+
+  const getStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case 'scheduled': return 'bg-primary/10 text-primary';
+      case 'completed': return 'bg-green-100 text-green-600';
+      case 'cancelled': return 'bg-destructive/10 text-destructive';
+      case 'pending_payment': return 'bg-yellow-100 text-yellow-600';
+      default: return 'bg-muted text-muted-foreground';
     }
   };
 
@@ -226,6 +237,9 @@ const Perfil = () => {
           </CardContent>
         </Card>
 
+        {/* Mapa da Barbearia */}
+        <MapView />
+
         {/* Histórico de Agendamentos */}
         <Card>
           <CardHeader className="pb-3">
@@ -248,54 +262,54 @@ const Perfil = () => {
                 </Button>
               </div>
             ) : (
-              <div className="space-y-3">
-                {appointments.map((appointment) => (
-                  <div key={appointment.id} className="border border-border rounded-lg p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-medium">{appointment.services?.name}</h3>
-                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(appointment.status)}`}>
-                            {getStatusText(appointment.status)}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
+              <div className="space-y-2">
+                {appointments.map((appointment, index) => {
+                  const isNext = index === 0 && appointment.status === 'scheduled' && 
+                    new Date(appointment.scheduled_time) > new Date();
+                  
+                  return (
+                    <div 
+                      key={appointment.id} 
+                      className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
+                        isNext ? 'bg-primary/5 border-l-4 border-l-primary' : 'hover:bg-muted/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {isNext && <CheckCircle className="w-4 h-4 text-primary" />}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className={`font-medium ${isNext ? 'text-primary' : ''}`}>
+                              {appointment.services?.name}
+                            </h4>
+                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusBadgeColor(appointment.status)}`}>
+                              {getStatusText(appointment.status)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
                             <span>
                               {new Date(appointment.scheduled_time).toLocaleDateString('pt-BR')}
                             </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-4 h-4" />
                             <span>
                               {new Date(appointment.scheduled_time).toLocaleTimeString('pt-BR', { 
                                 hour: '2-digit', 
                                 minute: '2-digit' 
                               })}
                             </span>
+                            <span>{appointment.services?.duration_minutes}min</span>
                           </div>
                         </div>
-                        {appointment.notes && (
-                          <p className="text-sm text-muted-foreground">
-                            {appointment.notes}
-                          </p>
-                        )}
                       </div>
                       <div className="text-right">
-                        <p className="font-medium text-primary">
+                        <p className={`font-medium ${isNext ? 'text-primary' : 'text-foreground'}`}>
                           {new Intl.NumberFormat('pt-BR', {
                             style: 'currency',
                             currency: 'BRL'
                           }).format(appointment.services?.price || 0)}
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {appointment.services?.duration_minutes}min
-                        </p>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
