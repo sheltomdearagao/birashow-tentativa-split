@@ -10,6 +10,7 @@ import AgendamentoConfirmado from "./pages/AgendamentoConfirmado";
 import AgendamentoErro from "./pages/AgendamentoErro";
 import AgendamentoPendente from "./pages/AgendamentoPendente";
 import NotFound from "./pages/NotFound";
+import PWAInstallPrompt from "./components/PWAInstallPrompt";
 
 const queryClient = new QueryClient();
 
@@ -18,6 +19,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <PWAInstallPrompt />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />

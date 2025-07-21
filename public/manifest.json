@@ -1,0 +1,26 @@
+{
+  "name": "BIRASHOW - Barbearia",
+  "short_name": "BIRASHOW",
+  "description": "Agende seu corte na BIRASHOW - A melhor barbearia de Salvador",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#DAA520",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/lovable-uploads/4a4b38e3-1a5f-479e-b498-84fc34790acf.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/lovable-uploads/4a4b38e3-1a5f-479e-b498-84fc34790acf.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["lifestyle", "business"],
+  "lang": "pt-BR"
+}

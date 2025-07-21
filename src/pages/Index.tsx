@@ -133,9 +133,11 @@ const Index = () => {
       <div className="bg-gradient-card border-b border-border p-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-primary p-2 rounded-lg">
-              <Scissors className="w-5 h-5 text-primary-foreground" />
-            </div>
+            <img 
+              src="/lovable-uploads/4a4b38e3-1a5f-479e-b498-84fc34790acf.png" 
+              alt="BIRASHOW Logo" 
+              className="w-10 h-10 rounded-lg"
+            />
             <div>
               <h1 className="text-lg font-bold">BIRASHOW</h1>
               <p className="text-xs text-muted-foreground">Tradição, Estilo e Modernidade</p>
