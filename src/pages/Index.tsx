@@ -139,7 +139,7 @@ const Index = () => {
               className="w-10 h-10 rounded-lg"
             />
             <div>
-              <h1 className="text-lg font-bold">BIRASHOW</h1>
+              <h1 className="text-lg font-bold font-lacquer">BIRASHOW</h1>
               <p className="text-xs text-muted-foreground">Tradição, Estilo e Modernidade</p>
             </div>
           </div>
@@ -263,4 +263,5 @@ const Index = () => {
       </div>
     </div>;
 };
+
 export default Index;
