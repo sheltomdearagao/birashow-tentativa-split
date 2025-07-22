@@ -9,12 +9,14 @@ import { format, addDays, isMonday, isSunday } from "date-fns";
 import { pt } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+
 interface SchedulingCalendarProps {
   selectedServices: string[];
   user: any;
   onBack: () => void;
   onScheduled: () => void;
 }
+
 interface TimeSlot {
   id: string;
   label: string;
@@ -22,111 +24,105 @@ interface TimeSlot {
   endTime: string;
   maxSlots: number;
 }
-const TIME_SLOTS: TimeSlot[] = [{
-  id: "morning",
-  label: "Manhã",
-  startTime: "09:00",
-  endTime: "12:00",
-  maxSlots: 5
-}, {
-  id: "afternoon",
-  label: "Tarde",
-  startTime: "14:00",
-  endTime: "18:00",
-  maxSlots: 5
-}, {
-  id: "evening",
-  label: "Noite",
-  startTime: "18:00",
-  endTime: "21:00",
-  maxSlots: 5
-}];
-export function SchedulingCalendar({
-  selectedServices,
-  user,
-  onBack,
-  onScheduled
-}: SchedulingCalendarProps) {
+
+const TIME_SLOTS: TimeSlot[] = [
+  { id: "morning", label: "Manhã", startTime: "09:00", endTime: "12:00", maxSlots: 5 },
+  { id: "afternoon", label: "Tarde", startTime: "14:00", endTime: "18:00", maxSlots: 5 },
+  { id: "evening", label: "Noite", startTime: "18:00", endTime: "21:00", maxSlots: 5 }
+];
+
+export function SchedulingCalendar({ selectedServices, user, onBack, onScheduled }: SchedulingCalendarProps) {
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedSlot, setSelectedSlot] = useState<string>();
   const [isBooking, setIsBooking] = useState(false);
-  const {
-    toast
-  } = useToast();
-  const {
-    data: services
-  } = useQuery({
+  const { toast } = useToast();
+
+  const { data: services } = useQuery({
     queryKey: ['services'],
     queryFn: async () => {
-      const {
-        data,
-        error
-      } = await supabase.from('services').select('*').in('id', selectedServices);
+      const { data, error } = await supabase
+        .from('services')
+        .select('*')
+        .in('id', selectedServices);
+      
       if (error) throw error;
       return data;
     }
   });
-  const {
-    data: profile
-  } = useQuery({
+
+  const { data: profile } = useQuery({
     queryKey: ['profile', user?.id],
     queryFn: async () => {
-      const {
-        data,
-        error
-      } = await supabase.from('profiles').select('*').eq('user_id', user.id).single();
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+      
       if (error) throw error;
       return data;
     },
     enabled: !!user
   });
-  const {
-    data: queueData
-  } = useQuery({
+
+  const { data: queueData } = useQuery({
     queryKey: ['queue', selectedDate],
     queryFn: async () => {
       if (!selectedDate) return [];
+      
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const {
-        data,
-        error
-      } = await supabase.from('daily_queue').select(`
+      const { data, error } = await supabase
+        .from('daily_queue')
+        .select(`
           *,
           appointments!inner(
             scheduled_time,
             service_id
           )
-        `).eq('queue_date', dateStr).eq('is_active', true);
+        `)
+        .eq('queue_date', dateStr)
+        .eq('is_active', true);
+      
       if (error) throw error;
       return data || [];
     },
     enabled: !!selectedDate
   });
+
   const getTotalPrice = () => {
     if (!services) return 0;
     return services.reduce((total, service) => total + service.price, 0);
   };
+
   const getTotalDuration = () => {
     if (!services) return 0;
     return services.reduce((total, service) => total + service.duration_minutes, 0);
   };
+
   const getSlotOccupancy = (slotId: string) => {
     if (!queueData || !selectedDate) return 0;
+    
     const slot = TIME_SLOTS.find(s => s.id === slotId);
     if (!slot) return 0;
+
     const slotStart = new Date(`${format(selectedDate, 'yyyy-MM-dd')} ${slot.startTime}`);
     const slotEnd = new Date(`${format(selectedDate, 'yyyy-MM-dd')} ${slot.endTime}`);
+
     return queueData.filter(item => {
       const appointmentTime = new Date(item.appointments.scheduled_time);
       return appointmentTime >= slotStart && appointmentTime <= slotEnd;
     }).length;
   };
+
   const isDateDisabled = (date: Date) => {
     return isMonday(date) || isSunday(date) || date < new Date();
   };
+
   const handleSchedule = async () => {
     if (!selectedDate || !selectedSlot || !profile) return;
+    
     setIsBooking(true);
+    
     try {
       // Get slot details
       const slot = TIME_SLOTS.find(s => s.id === selectedSlot);
@@ -139,22 +135,24 @@ export function SchedulingCalendar({
       }
 
       // Criar preferência de pagamento no Mercado Pago
-      const {
-        data: preferenceData,
-        error: preferenceError
-      } = await supabase.functions.invoke('mp-create-appointment-preference', {
-        body: {
-          service_ids: selectedServices,
-          scheduled_date: format(selectedDate, 'yyyy-MM-dd'),
-          time_slot: selectedSlot
+      const { data: preferenceData, error: preferenceError } = await supabase.functions.invoke(
+        'mp-create-appointment-preference',
+        {
+          body: {
+            service_ids: selectedServices,
+            scheduled_date: format(selectedDate, 'yyyy-MM-dd'),
+            time_slot: selectedSlot
+          }
         }
-      });
+      );
+
       if (preferenceError) {
         throw new Error(preferenceError.message || 'Erro ao criar preferência de pagamento');
       }
 
       // Redirecionar para o Mercado Pago
       window.location.href = preferenceData.init_point;
+      
     } catch (error: any) {
       toast({
         title: "Erro ao processar pagamento",
@@ -164,7 +162,9 @@ export function SchedulingCalendar({
       setIsBooking(false);
     }
   };
-  return <div className="max-w-6xl mx-auto space-y-6">
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <Button variant="ghost" onClick={onBack}>
@@ -179,24 +179,26 @@ export function SchedulingCalendar({
         <CardContent className="p-6">
           <h3 className="font-semibold text-lg mb-4">Serviços Selecionados</h3>
           <div className="space-y-2 mb-4">
-            {services?.map(service => <div key={service.id} className="flex justify-between items-center">
+            {services?.map((service) => (
+              <div key={service.id} className="flex justify-between items-center">
                 <span>{service.name}</span>
                 <span className="font-medium">
                   {new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL'
-              }).format(service.price)}
+                    style: 'currency',
+                    currency: 'BRL'
+                  }).format(service.price)}
                 </span>
-              </div>)}
+              </div>
+            ))}
           </div>
           <div className="border-t pt-4 flex justify-between items-center">
             <div>
               <span className="font-semibold">Total: </span>
               <span className="text-xl font-bold text-primary">
                 {new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL'
-              }).format(getTotalPrice())}
+                  style: 'currency',
+                  currency: 'BRL'
+                }).format(getTotalPrice())}
               </span>
             </div>
             <div className="flex items-center gap-1 text-muted-foreground">
@@ -215,10 +217,16 @@ export function SchedulingCalendar({
               <CalendarIcon className="w-5 h-5" />
               Escolha a Data
             </h3>
-            <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} disabled={isDateDisabled} className="w-full" />
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={setSelectedDate}
+              disabled={isDateDisabled}
+              className="w-full"
+            />
             <div className="mt-4 text-sm text-muted-foreground">
               <p>• Não atendemos às segundas-feiras</p>
-              <p>• Não fazemos agendamento aos domingos</p>
+              <p>• Aos domingos, atendemos por ordem de chegada</p>
             </div>
           </CardContent>
         </Card>
@@ -227,13 +235,28 @@ export function SchedulingCalendar({
         <Card className="bg-gradient-card border-border shadow-card">
           <CardContent className="p-6">
             <h3 className="font-semibold text-lg mb-4">Escolha o Turno</h3>
-            {!selectedDate ? <p className="text-muted-foreground text-center py-8">
+            {!selectedDate ? (
+              <p className="text-muted-foreground text-center py-8">
                 Selecione uma data primeiro
-              </p> : <div className="space-y-3">
-                {TIME_SLOTS.map(slot => {
-              const occupancy = getSlotOccupancy(slot.id);
-              const isAvailable = occupancy < slot.maxSlots;
-              return <div key={slot.id} className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${selectedSlot === slot.id ? 'border-primary bg-primary/10' : isAvailable ? 'border-border hover:border-primary/50' : 'border-destructive/20 bg-destructive/5 cursor-not-allowed'}`} onClick={() => isAvailable && setSelectedSlot(slot.id)}>
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {TIME_SLOTS.map((slot) => {
+                  const occupancy = getSlotOccupancy(slot.id);
+                  const isAvailable = occupancy < slot.maxSlots;
+                  
+                  return (
+                    <div
+                      key={slot.id}
+                      className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                        selectedSlot === slot.id
+                          ? 'border-primary bg-primary/10'
+                          : isAvailable
+                          ? 'border-border hover:border-primary/50'
+                          : 'border-destructive/20 bg-destructive/5 cursor-not-allowed'
+                      }`}
+                      onClick={() => isAvailable && setSelectedSlot(slot.id)}
+                    >
                       <div className="flex justify-between items-center">
                         <div>
                           <h4 className="font-medium">{slot.label}</h4>
@@ -248,31 +271,43 @@ export function SchedulingCalendar({
                               {occupancy}/{slot.maxSlots}
                             </span>
                           </div>
-                          <Badge variant={isAvailable ? "default" : "destructive"} className="text-xs">
+                          <Badge 
+                            variant={isAvailable ? "default" : "destructive"}
+                            className="text-xs"
+                          >
                             {isAvailable ? "Disponível" : "Lotado"}
                           </Badge>
                         </div>
                       </div>
-                    </div>;
-            })}
-              </div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
       {/* Schedule Button */}
-      {selectedDate && selectedSlot && <Card className="bg-gradient-card border-border shadow-card">
+      {selectedDate && selectedSlot && (
+        <Card className="bg-gradient-card border-border shadow-card">
           <CardContent className="p-6">
-            <Button variant="premium" size="lg" className="w-full" onClick={handleSchedule} disabled={isBooking}>
+            <Button
+              variant="premium"
+              size="lg"
+              className="w-full"
+              onClick={handleSchedule}
+              disabled={isBooking}
+            >
               {isBooking ? "Redirecionando..." : "PAGAR E CONFIRMAR AGENDAMENTO"}
             </Button>
             <p className="text-center text-sm text-muted-foreground mt-2">
-              Agendamento para {format(selectedDate, "dd 'de' MMMM 'de' yyyy", {
-            locale: pt
-          })} 
+              Agendamento para {format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: pt })} 
               {" no turno da "}{TIME_SLOTS.find(s => s.id === selectedSlot)?.label.toLowerCase()}
             </p>
           </CardContent>
-        </Card>}
-    </div>;
+        </Card>
+      )}
+    </div>
+  );
 }
