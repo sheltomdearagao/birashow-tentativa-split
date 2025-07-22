@@ -9,29 +9,30 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-
 const Index = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [showScheduling, setShowScheduling] = useState(false);
-  const { toast } = useToast();
+  const {
+    toast
+  } = useToast();
   const navigate = useNavigate();
   // Buscar serviços
-  const { data: services = [], isLoading: servicesLoading } = useQuery({
+  const {
+    data: services = [],
+    isLoading: servicesLoading
+  } = useQuery({
     queryKey: ['services'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('services')
-        .select('*')
-        .eq('is_active', true)
-        .order('price');
-      
+      const {
+        data,
+        error
+      } = await supabase.from('services').select('*').eq('is_active', true).order('price');
       if (error) throw error;
       return data;
-    },
+    }
   });
-
   useEffect(() => {
     // Verificar sessão existente
     supabase.auth.getSession().then(({
@@ -73,20 +74,13 @@ const Index = () => {
       });
     }
   };
-
   const handleServiceToggle = (serviceId: string) => {
-    setSelectedServices(prev => 
-      prev.includes(serviceId) 
-        ? prev.filter(id => id !== serviceId)
-        : [...prev, serviceId]
-    );
+    setSelectedServices(prev => prev.includes(serviceId) ? prev.filter(id => id !== serviceId) : [...prev, serviceId]);
   };
-
   const openDirections = () => {
     const googleMapsUrl = 'https://www.google.com/maps/dir//R.+Heide+Carneiro,+50+-+Trobogy,+Salvador+-+BA,+41745-135';
     window.open(googleMapsUrl, '_blank');
   };
-
   const handleProceedToScheduling = () => {
     if (selectedServices.length === 0) {
       toast({
@@ -98,7 +92,6 @@ const Index = () => {
     }
     setShowScheduling(true);
   };
-
   const getTotalPrice = () => {
     return selectedServices.reduce((total, serviceId) => {
       const service = services.find(s => s.id === serviceId);
@@ -110,22 +103,15 @@ const Index = () => {
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>;
   }
-  
   if (!user) {
     return <AuthForm onSuccess={() => {}} />;
   }
-
   if (showScheduling) {
     return <div className="min-h-screen bg-gradient-background p-4">
-        <SchedulingCalendar 
-          selectedServices={selectedServices} 
-          user={user} 
-          onBack={() => setShowScheduling(false)} 
-          onScheduled={() => {
-            setSelectedServices([]);
-            setShowScheduling(false);
-          }} 
-        />
+        <SchedulingCalendar selectedServices={selectedServices} user={user} onBack={() => setShowScheduling(false)} onScheduled={() => {
+        setSelectedServices([]);
+        setShowScheduling(false);
+      }} />
       </div>;
   }
   return <div className="min-h-screen bg-gradient-background">
@@ -133,13 +119,9 @@ const Index = () => {
       <div className="bg-gradient-card border-b border-border p-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img 
-              src="/lovable-uploads/4a4b38e3-1a5f-479e-b498-84fc34790acf.png" 
-              alt="BIRASHOW Logo" 
-              className="w-10 h-10 rounded-lg"
-            />
+            <img src="/lovable-uploads/4a4b38e3-1a5f-479e-b498-84fc34790acf.png" alt="BIRASHOW Logo" className="w-10 h-10 rounded-lg" />
             <div>
-              <h1 className="text-lg font-bold font-lacquer">BIRASHOW</h1>
+              <h1 className="font-lacquer font-thin text-3xl">BIRASHOW</h1>
               <p className="text-xs text-muted-foreground">Tradição, Estilo e Modernidade</p>
             </div>
           </div>
@@ -159,34 +141,27 @@ const Index = () => {
         <div className="mb-6">
           <h2 className="text-xl font-bold mb-4">Escolha seus serviços</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {services.map((service) => (
-              <div key={service.id} className={`p-4 border rounded-lg cursor-pointer transition-all hover:scale-105 ${
-                selectedServices.includes(service.id) 
-                  ? 'border-primary bg-primary/10' 
-                  : 'border-border bg-gradient-card'
-              }`} onClick={() => handleServiceToggle(service.id)}>
+            {services.map(service => <div key={service.id} className={`p-4 border rounded-lg cursor-pointer transition-all hover:scale-105 ${selectedServices.includes(service.id) ? 'border-primary bg-primary/10' : 'border-border bg-gradient-card'}`} onClick={() => handleServiceToggle(service.id)}>
                 <div className="text-center">
                   <Scissors className="w-6 h-6 mx-auto text-primary mb-2" />
                   <h3 className="font-medium text-sm mb-1">{service.name}</h3>
                   <p className="text-lg font-bold text-primary">
                     {new Intl.NumberFormat('pt-BR', {
-                      style: 'currency',
-                      currency: 'BRL'
-                    }).format(service.price)}
+                  style: 'currency',
+                  currency: 'BRL'
+                }).format(service.price)}
                   </p>
                   <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground mt-1">
                     <Clock className="w-3 h-3" />
                     <span>{service.duration_minutes}min</span>
                   </div>
                 </div>
-              </div>
-            ))}
+              </div>)}
           </div>
         </div>
 
         {/* Total e Botão de Agendamento */}
-        {selectedServices.length > 0 && (
-          <div className="bg-gradient-card border border-border rounded-lg p-4 mb-6">
+        {selectedServices.length > 0 && <div className="bg-gradient-card border border-border rounded-lg p-4 mb-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">
@@ -194,17 +169,16 @@ const Index = () => {
                 </p>
                 <p className="text-xl font-bold text-primary">
                   Total: {new Intl.NumberFormat('pt-BR', {
-                    style: 'currency',
-                    currency: 'BRL'
-                  }).format(getTotalPrice())}
+                style: 'currency',
+                currency: 'BRL'
+              }).format(getTotalPrice())}
                 </p>
               </div>
               <Button onClick={handleProceedToScheduling} size="lg">
                 Escolher Horário
               </Button>
             </div>
-          </div>
-        )}
+          </div>}
 
         {/* Localização da Barbearia */}
         <div className="mb-6">
@@ -221,16 +195,9 @@ const Index = () => {
                 </Button>
               </div>
               <div className="w-full h-64 rounded-lg overflow-hidden">
-                <iframe 
-                  src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d1169.6372364937565!2d-38.4057596!3d-12.9293001!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x71610b41b2a5cc1%3A0x82a85e5736a1f597!2sR.%20Heide%20Carneiro%2C%2050%20-%20Trobogy%2C%20Salvador%20-%20BA%2C%2041745-135!5e1!3m2!1spt-BR!2sbr!4v1753121176658!5m2!1spt-BR!2sbr" 
-                  width="100%" 
-                  height="100%" 
-                  style={{border:0}} 
-                  allowFullScreen={true}
-                  loading="lazy" 
-                  referrerPolicy="no-referrer-when-downgrade"
-                  title="Localização da Barbearia"
-                />
+                <iframe src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d1169.6372364937565!2d-38.4057596!3d-12.9293001!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x71610b41b2a5cc1%3A0x82a85e5736a1f597!2sR.%20Heide%20Carneiro%2C%2050%20-%20Trobogy%2C%20Salvador%20-%20BA%2C%2041745-135!5e1!3m2!1spt-BR!2sbr!4v1753121176658!5m2!1spt-BR!2sbr" width="100%" height="100%" style={{
+                border: 0
+              }} allowFullScreen={true} loading="lazy" referrerPolicy="no-referrer-when-downgrade" title="Localização da Barbearia" />
               </div>
               <p className="text-sm text-muted-foreground mt-2">
                 R. Heide Carneiro, 50 - Trobogy, Salvador - BA
@@ -263,5 +230,4 @@ const Index = () => {
       </div>
     </div>;
 };
-
 export default Index;
