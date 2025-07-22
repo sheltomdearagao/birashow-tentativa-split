@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       throw new Error('Unauthorized')
     }
 
-    const { items, marketplace_fee_percentage = 10 }: { 
+    const { items, marketplace_fee_percentage = 4 }: { 
       items: PreferenceItem[], 
       marketplace_fee_percentage?: number 
     } = await req.json()
