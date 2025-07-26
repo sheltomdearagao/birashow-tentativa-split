@@ -61,7 +61,7 @@ const Perfil = () => {
         .from('appointments')
         .select(`
           *,
-          services:service_id (name, price, duration_minutes)
+          services:service_id (id, name, price, duration_minutes)
         `)
         .eq('customer_id', profileData.id)
         .order('scheduled_time', { ascending: false });

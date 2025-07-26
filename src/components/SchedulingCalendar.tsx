@@ -71,17 +71,13 @@ export function SchedulingCalendar({ selectedServices, user, onBack, onScheduled
       if (!selectedDate) return [];
       
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
+      
+      // Buscar agendamentos confirmados para a data selecionada
       const { data, error } = await supabase
-        .from('daily_queue')
-        .select(`
-          *,
-          appointments!inner(
-            scheduled_time,
-            service_id
-          )
-        `)
-        .eq('queue_date', dateStr)
-        .eq('is_active', true);
+        .from('appointments')
+        .select('*')
+        .eq('scheduled_time', `${dateStr}T10:00:00+00:00`)
+        .in('status', ['scheduled', 'pending_payment']); // Incluir ambos os status
       
       if (error) throw error;
       return data || [];
@@ -105,13 +101,14 @@ export function SchedulingCalendar({ selectedServices, user, onBack, onScheduled
     const slot = TIME_SLOTS.find(s => s.id === slotId);
     if (!slot) return 0;
 
-    const slotStart = new Date(`${format(selectedDate, 'yyyy-MM-dd')} ${slot.startTime}`);
-    const slotEnd = new Date(`${format(selectedDate, 'yyyy-MM-dd')} ${slot.endTime}`);
-
-    return queueData.filter(item => {
-      const appointmentTime = new Date(item.appointments.scheduled_time);
-      return appointmentTime >= slotStart && appointmentTime <= slotEnd;
-    }).length;
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+    
+    // Contar agendamentos confirmados para a data selecionada
+    // Assumindo que cada agendamento ocupa um slot no turno
+    return queueData.filter(appointment => 
+      appointment.scheduled_time.startsWith(dateStr) && 
+      appointment.status === 'scheduled' // Só contar agendamentos confirmados
+    ).length;
   };
 
   const isDateDisabled = (date: Date) => {

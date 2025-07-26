@@ -12,6 +12,7 @@ interface Appointment {
   scheduled_time: string;
   status: string;
   services?: {
+    id: string;
     name: string;
     price: number;
     duration_minutes: number;
@@ -104,7 +105,7 @@ export function AppointmentHistory({ appointments, isLoading, onRefresh }: Appoi
       // Criar nova preferência de pagamento para este agendamento específico
       const { data, error } = await supabase.functions.invoke('mp-create-appointment-preference', {
         body: {
-          service_ids: [appointment.services ? appointment.services.name : ''],
+          service_ids: [appointment.services?.id || ''], // Usar o service_id correto
           scheduled_date: appointment.scheduled_time.split('T')[0],
           time_slot: 'existing', // Indicar que é um agendamento existente
           appointment_id: appointment.id
