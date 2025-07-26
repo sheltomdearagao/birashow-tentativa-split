@@ -93,7 +93,8 @@ const Perfil = () => {
         <ProfileInfo user={user} profile={profile} />
         <AppointmentHistory 
           appointments={appointments} 
-          isLoading={appointmentsLoading} 
+          isLoading={appointmentsLoading}
+          onRefresh={() => window.location.reload()}
         />
       </div>
     </div>

@@ -1,8 +1,11 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, CheckCircle } from "lucide-react";
+import { Calendar, CheckCircle, Trash2, CreditCard } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface Appointment {
   id: string;
@@ -18,10 +21,12 @@ interface Appointment {
 interface AppointmentHistoryProps {
   appointments: Appointment[];
   isLoading: boolean;
+  onRefresh: () => void;
 }
 
-export function AppointmentHistory({ appointments, isLoading }: AppointmentHistoryProps) {
+export function AppointmentHistory({ appointments, isLoading, onRefresh }: AppointmentHistoryProps) {
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -50,6 +55,75 @@ export function AppointmentHistory({ appointments, isLoading }: AppointmentHisto
       case 'cancelled': return 'Cancelado';
       case 'pending_payment': return 'Pendente Pagamento';
       default: return status;
+    }
+  };
+
+  const canDelete = (appointment: Appointment) => {
+    const scheduledDate = new Date(appointment.scheduled_time);
+    const now = new Date();
+    
+    // Pode excluir se: não confirmado (pending_payment) ou já passou da data
+    return appointment.status === 'pending_payment' || scheduledDate < now;
+  };
+
+  const canPay = (appointment: Appointment) => {
+    const scheduledDate = new Date(appointment.scheduled_time);
+    const now = new Date();
+    
+    // Pode pagar se: pendente de pagamento e ainda não passou da data
+    return appointment.status === 'pending_payment' && scheduledDate >= now;
+  };
+
+  const handleDelete = async (appointmentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Agendamento excluído",
+        description: "O agendamento foi removido com sucesso.",
+      });
+
+      onRefresh();
+    } catch (error) {
+      console.error('Erro ao excluir agendamento:', error);
+      toast({
+        title: "Erro ao excluir",
+        description: "Não foi possível excluir o agendamento. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePayment = async (appointment: Appointment) => {
+    try {
+      // Criar nova preferência de pagamento para este agendamento específico
+      const { data, error } = await supabase.functions.invoke('mp-create-appointment-preference', {
+        body: {
+          service_ids: [appointment.services ? appointment.services.name : ''],
+          scheduled_date: appointment.scheduled_time.split('T')[0],
+          time_slot: 'existing', // Indicar que é um agendamento existente
+          appointment_id: appointment.id
+        }
+      });
+
+      if (error) throw error;
+
+      // Redirecionar para o pagamento
+      if (data?.init_point) {
+        window.location.href = data.init_point;
+      }
+    } catch (error) {
+      console.error('Erro ao processar pagamento:', error);
+      toast({
+        title: "Erro no pagamento",
+        description: "Não foi possível processar o pagamento. Tente novamente.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -112,13 +186,59 @@ export function AppointmentHistory({ appointments, isLoading }: AppointmentHisto
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`font-medium ${isNext ? 'text-primary' : 'text-foreground'}`}>
-                      {new Intl.NumberFormat('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL'
-                      }).format(appointment.services?.price || 0)}
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <p className={`font-medium ${isNext ? 'text-primary' : 'text-foreground'}`}>
+                        {new Intl.NumberFormat('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL'
+                        }).format(appointment.services?.price || 0)}
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center gap-1">
+                      {canPay(appointment) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handlePayment(appointment)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <CreditCard className="w-4 h-4" />
+                        </Button>
+                      )}
+                      
+                      {canDelete(appointment) && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Excluir agendamento</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(appointment.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
