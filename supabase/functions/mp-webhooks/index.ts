@@ -148,14 +148,56 @@ async function processPaymentWebhook(supabase: any, data: any) {
     }
 
     const payment = await paymentResponse.json()
-    console.log('Detalhes do pagamento:', { id: payment.id, status: payment.status, external_reference: payment.external_reference })
+    console.log('Detalhes do pagamento:', { 
+      id: payment.id, 
+      status: payment.status, 
+      external_reference: payment.external_reference,
+      order: payment.order,
+      metadata: payment.metadata
+    })
 
-    // Buscar agendamentos pendentes pelo external_reference ou preference_id
-    const { data: pendingAppointments, error } = await supabase
-      .from('appointments')
-      .select('*')
-      .eq('status', 'pending_payment')
-      .or(`notes.ilike.%${payment.external_reference || ''}%,notes.ilike.%${payment.order?.id || ''}%`)
+    // Buscar agendamentos pendentes - vamos tentar múltiplas abordagens
+    let pendingAppointments = null
+    let error = null
+
+    // 1. Tentar buscar pelo preference_id se disponível
+    const preferenceId = payment.order?.preference_id || payment.metadata?.preference_id
+    if (preferenceId) {
+      console.log('Buscando agendamentos pelo preference_id:', preferenceId)
+      const result = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('status', 'pending_payment')
+        .ilike('notes', `%${preferenceId}%`)
+      
+      pendingAppointments = result.data
+      error = result.error
+    }
+
+    // 2. Se não encontrou, tentar buscar pelo external_reference 
+    if ((!pendingAppointments || pendingAppointments.length === 0) && payment.external_reference) {
+      console.log('Buscando agendamentos pelo external_reference:', payment.external_reference)
+      const result = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('status', 'pending_payment')
+        
+      // Filtrar manualmente pela external_reference que contém o customer_id
+      if (result.data) {
+        const customerIdFromRef = payment.external_reference.split('_').pop()
+        console.log('Customer ID extraído da external_reference:', customerIdFromRef)
+        
+        const filteredAppointments = result.data.filter(apt => apt.customer_id === customerIdFromRef)
+        if (filteredAppointments.length > 0) {
+          pendingAppointments = filteredAppointments
+        }
+      }
+      
+      if (!pendingAppointments || pendingAppointments.length === 0) {
+        pendingAppointments = result.data
+      }
+      error = result.error
+    }
 
     if (error) {
       console.error('Erro ao buscar agendamentos pendentes:', error)

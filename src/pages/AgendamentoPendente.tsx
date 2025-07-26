@@ -37,7 +37,7 @@ export default function AgendamentoPendente() {
             <Button 
               variant="premium" 
               className="w-full"
-              onClick={() => navigate('/services')}
+              onClick={() => navigate('/perfil')}
             >
               Ver Status dos Agendamentos
             </Button>
