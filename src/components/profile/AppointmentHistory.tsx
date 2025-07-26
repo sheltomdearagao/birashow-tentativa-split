@@ -103,11 +103,8 @@ export function AppointmentHistory({ appointments, isLoading, onRefresh }: Appoi
   const handlePayment = async (appointment: Appointment) => {
     try {
       // Criar nova preferência de pagamento para este agendamento específico
-      const { data, error } = await supabase.functions.invoke('mp-create-appointment-preference', {
+      const { data, error } = await supabase.functions.invoke('mp-create-payment-preference', {
         body: {
-          service_ids: [appointment.services?.id || ''], // Usar o service_id correto
-          scheduled_date: appointment.scheduled_time.split('T')[0],
-          time_slot: 'existing', // Indicar que é um agendamento existente
           appointment_id: appointment.id
         }
       });
@@ -117,12 +114,14 @@ export function AppointmentHistory({ appointments, isLoading, onRefresh }: Appoi
       // Redirecionar para o pagamento
       if (data?.init_point) {
         window.location.href = data.init_point;
+      } else {
+        throw new Error('URL de pagamento não recebida');
       }
     } catch (error) {
       console.error('Erro ao processar pagamento:', error);
       toast({
         title: "Erro no pagamento",
-        description: "Não foi possível processar o pagamento. Tente novamente.",
+        description: error.message || "Não foi possível processar o pagamento. Tente novamente.",
         variant: "destructive",
       });
     }
