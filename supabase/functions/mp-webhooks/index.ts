@@ -38,9 +38,21 @@ Deno.serve(async (req) => {
 
     console.log('Webhook recebido:', data)
 
-    // Validar se a estrutura básica está presente
-    if (!data || (!data.data && !data.id)) {
-      console.log('Estrutura de dados inválida')
+    // Extrair ID do recurso dependendo do formato do webhook
+    let resourceId = null
+    if (data.data?.id) {
+      resourceId = data.data.id
+    } else if (data.resource) {
+      // Extrair ID da URL do resource (ex: https://api.mercadolibre.com/merchant_orders/123)
+      resourceId = data.resource.split('/').pop()
+    } else if (data.id) {
+      resourceId = data.id
+    }
+
+    console.log('Resource ID extraído:', resourceId, 'Topic:', data.topic, 'Type:', data.type)
+
+    if (!resourceId) {
+      console.log('Nenhum ID de recurso encontrado')
       return new Response('OK', { status: 200, headers: corsHeaders })
     }
 
@@ -75,7 +87,7 @@ Deno.serve(async (req) => {
     // Processar webhook baseado no tipo
     if (data.topic === 'payment' || data.type === 'payment') {
       await processPaymentWebhook(supabase, data)
-    } else if (data.topic === 'merchant_orders' || data.type === 'merchant_orders') {
+    } else if (data.topic === 'merchant_order' || data.type === 'merchant_order') {
       await processMerchantOrderWebhook(supabase, data)
     }
 
@@ -240,12 +252,110 @@ async function processPaymentWebhook(supabase: any, data: any) {
 
 async function processMerchantOrderWebhook(supabase: any, data: any) {
   try {
-    const orderId = data.data?.id
-    if (!orderId) return
+    let orderId = null
+    if (data.data?.id) {
+      orderId = data.data.id
+    } else if (data.resource) {
+      orderId = data.resource.split('/').pop()
+    }
+    
+    if (!orderId) {
+      console.log('Nenhum order ID encontrado')
+      return
+    }
 
     console.log('Processando merchant order:', orderId)
     
-    // Implementar lógica para buscar e atualizar status do pedido
+    // Obter access token do Mercado Pago
+    const clientId = Deno.env.get('MP_CLIENT_ID')
+    const clientSecret = Deno.env.get('MP_CLIENT_SECRET')
+    
+    if (!clientId || !clientSecret) {
+      console.error('Credenciais do Mercado Pago não configuradas')
+      return
+    }
+
+    // Obter access token
+    const tokenResponse = await fetch('https://api.mercadopago.com/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    })
+
+    if (!tokenResponse.ok) {
+      console.error('Erro ao obter token para merchant order:', tokenResponse.status)
+      return
+    }
+
+    const tokenData = await tokenResponse.json()
+    const accessToken = tokenData.access_token
+
+    // Buscar detalhes da merchant order
+    const orderResponse = await fetch(`https://api.mercadopago.com/merchant_orders/${orderId}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+
+    if (!orderResponse.ok) {
+      console.error('Erro ao buscar merchant order no MP:', orderResponse.status)
+      return
+    }
+
+    const order = await orderResponse.json()
+    console.log('Detalhes da merchant order:', {
+      id: order.id,
+      order_status: order.order_status,
+      preference_id: order.preference_id,
+      payments: order.payments?.map((p: any) => ({ id: p.id, status: p.status }))
+    })
+
+    // Se há pagamentos aprovados, vamos buscar e confirmar os agendamentos
+    const approvedPayments = order.payments?.filter((p: any) => p.status === 'approved') || []
+    
+    if (approvedPayments.length > 0 && order.preference_id) {
+      console.log('Merchant order com pagamentos aprovados, confirmando agendamentos...')
+      
+      // Buscar agendamentos pelo preference_id
+      const { data: pendingAppointments, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('status', 'pending_payment')
+        .ilike('notes', `%${order.preference_id}%`)
+
+      if (error) {
+        console.error('Erro ao buscar agendamentos pendentes:', error)
+        return
+      }
+
+      if (pendingAppointments && pendingAppointments.length > 0) {
+        console.log(`Encontrados ${pendingAppointments.length} agendamentos para confirmar`)
+        
+        for (const appointment of pendingAppointments) {
+          const { error: updateError } = await supabase
+            .from('appointments')
+            .update({ 
+              status: 'scheduled',
+              notes: `Pagamento confirmado via merchant order: ${orderId} - Payments: ${approvedPayments.map((p: any) => p.id).join(', ')}`
+            })
+            .eq('id', appointment.id)
+
+          if (updateError) {
+            console.error('Erro ao atualizar agendamento:', updateError)
+          } else {
+            console.log('Agendamento confirmado via merchant order:', appointment.id)
+          }
+        }
+      } else {
+        console.log('Nenhum agendamento pendente encontrado para esta merchant order')
+      }
+    }
     
   } catch (error) {
     console.error('Erro ao processar merchant order webhook:', error)
