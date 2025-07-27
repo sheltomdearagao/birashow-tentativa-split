@@ -1,11 +1,13 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, CheckCircle, Trash2, CreditCard } from "lucide-react";
+import { Calendar, CheckCircle, Trash2, CreditCard, ChevronDown, History } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useState } from "react";
 
 interface Appointment {
   id: string;
@@ -28,6 +30,23 @@ interface AppointmentHistoryProps {
 export function AppointmentHistory({ appointments, isLoading, onRefresh }: AppointmentHistoryProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+  // Separar agendamentos futuros/ativos dos passados
+  const now = new Date();
+  const activeAppointments = appointments.filter(appointment => {
+    const scheduledDate = new Date(appointment.scheduled_time);
+    return appointment.status === 'scheduled' || 
+           appointment.status === 'pending_payment' || 
+           (scheduledDate >= now);
+  });
+  
+  const pastAppointments = appointments.filter(appointment => {
+    const scheduledDate = new Date(appointment.scheduled_time);
+    return appointment.status === 'completed' || 
+           appointment.status === 'cancelled' || 
+           (scheduledDate < now && appointment.status !== 'scheduled' && appointment.status !== 'pending_payment');
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -127,125 +146,163 @@ export function AppointmentHistory({ appointments, isLoading, onRefresh }: Appoi
     }
   };
 
+  const renderAppointmentCard = (appointment: Appointment, isNext: boolean = false) => (
+    <div 
+      key={appointment.id} 
+      className={`p-3 rounded-lg border transition-all ${
+        isNext 
+          ? 'bg-primary/5 border-primary/20' 
+          : 'bg-card border-border hover:bg-muted/30'
+      }`}
+    >
+      <div className="space-y-2">
+        <div className="flex items-start justify-between">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              {isNext && <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />}
+              <h4 className={`font-medium truncate ${isNext ? 'text-primary' : 'text-foreground'}`}>
+                {appointment.services?.name}
+              </h4>
+            </div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusBadgeColor(appointment.status)}`}>
+                {getStatusText(appointment.status)}
+              </span>
+            </div>
+          </div>
+          <div className="text-right flex-shrink-0 ml-2">
+            <p className={`font-semibold text-sm ${isNext ? 'text-primary' : 'text-foreground'}`}>
+              {new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+              }).format(appointment.services?.price || 0)}
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span>{new Date(appointment.scheduled_time).toLocaleDateString('pt-BR')}</span>
+            <span>{new Date(appointment.scheduled_time).toLocaleTimeString('pt-BR', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            })}</span>
+            <span>{appointment.services?.duration_minutes}min</span>
+          </div>
+          
+          <div className="flex items-center gap-1">
+            {canPay(appointment) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePayment(appointment)}
+                className="h-7 w-7 p-0"
+              >
+                <CreditCard className="w-3 h-3" />
+              </Button>
+            )}
+            
+            {canDelete(appointment) && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Excluir agendamento</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => handleDelete(appointment.id)}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Excluir
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Calendar className="w-5 h-5" />
-          Meus Agendamentos
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          </div>
-        ) : appointments.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>Nenhum agendamento encontrado</p>
-            <Button variant="outline" className="mt-4" onClick={() => navigate('/')}>
-              Fazer Agendamento
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {appointments.map((appointment, index) => {
-              const isNext = index === 0 && appointment.status === 'scheduled' && 
-                new Date(appointment.scheduled_time) > new Date();
-              
-              return (
-                <div 
-                  key={appointment.id} 
-                  className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
-                    isNext ? 'bg-primary/5 border-l-4 border-l-primary' : 'hover:bg-muted/50'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    {isNext && <CheckCircle className="w-4 h-4 text-primary" />}
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className={`font-medium ${isNext ? 'text-primary' : ''}`}>
-                          {appointment.services?.name}
-                        </h4>
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusBadgeColor(appointment.status)}`}>
-                          {getStatusText(appointment.status)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                        <span>
-                          {new Date(appointment.scheduled_time).toLocaleDateString('pt-BR')}
-                        </span>
-                        <span>
-                          {new Date(appointment.scheduled_time).toLocaleTimeString('pt-BR', { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                          })}
-                        </span>
-                        <span>{appointment.services?.duration_minutes}min</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-right">
-                      <p className={`font-medium ${isNext ? 'text-primary' : 'text-foreground'}`}>
-                        {new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL'
-                        }).format(appointment.services?.price || 0)}
-                      </p>
-                    </div>
-                    
-                    <div className="flex items-center gap-1">
-                      {canPay(appointment) && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handlePayment(appointment)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <CreditCard className="w-4 h-4" />
-                        </Button>
-                      )}
-                      
-                      {canDelete(appointment) && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Excluir agendamento</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Tem certeza que deseja excluir este agendamento? Esta ação não pode ser desfeita.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDelete(appointment.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Excluir
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
-                    </div>
-                  </div>
+    <div className="space-y-4">
+      {/* Agendamentos Ativos/Futuros */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Calendar className="w-5 h-5" />
+            Próximos Agendamentos
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            </div>
+          ) : activeAppointments.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p className="text-sm mb-2">Nenhum agendamento ativo</p>
+              <Button variant="outline" size="sm" onClick={() => navigate('/')}>
+                Fazer Agendamento
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {activeAppointments.map((appointment, index) => {
+                const isNext = index === 0 && appointment.status === 'scheduled' && 
+                  new Date(appointment.scheduled_time) > new Date();
+                return renderAppointmentCard(appointment, isNext);
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Histórico de Agendamentos (Colapsável) */}
+      {pastAppointments.length > 0 && (
+        <Collapsible open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+          <Card>
+            <CardHeader className="pb-3">
+              <CollapsibleTrigger asChild>
+                <div className="flex items-center justify-between cursor-pointer hover:bg-muted/30 -m-2 p-2 rounded-lg transition-colors">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <History className="w-5 h-5" />
+                    Histórico de Agendamentos
+                    <span className="text-sm font-normal text-muted-foreground">
+                      ({pastAppointments.length})
+                    </span>
+                  </CardTitle>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${isHistoryOpen ? 'rotate-180' : ''}`} />
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              </CollapsibleTrigger>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent className="pt-0">
+                <div className="space-y-3">
+                  {pastAppointments.map((appointment) => 
+                    renderAppointmentCard(appointment, false)
+                  )}
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      )}
+    </div>
   );
 }
