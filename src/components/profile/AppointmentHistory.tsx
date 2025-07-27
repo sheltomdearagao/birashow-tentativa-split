@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, CheckCircle, Trash2, CreditCard, ChevronDown, History } from "lucide-react";
@@ -273,7 +272,7 @@ export function AppointmentHistory({ appointments, isLoading, onRefresh }: Appoi
         </CardContent>
       </Card>
 
-      {/* Histórico de Agendamentos (Colapsável) */}
+      {/* Histórico de Agendamentos (Colapsável - Fechado por padrão) */}
       {pastAppointments.length > 0 && (
         <Collapsible open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
           <Card>
