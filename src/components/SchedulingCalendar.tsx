@@ -104,12 +104,25 @@ export function SchedulingCalendar({ selectedServices, user, onBack, onScheduled
 
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     
-    // Contar agendamentos confirmados para a data selecionada
-    // Assumindo que cada agendamento ocupa um slot no turno
-    return queueData.filter(appointment => 
-      appointment.scheduled_time.startsWith(dateStr) && 
-      appointment.status === 'scheduled' // Só contar agendamentos confirmados
-    ).length;
+    // Mapear turno para horário específico
+    const getTimeForSlot = (slotId: string) => {
+      switch (slotId) {
+        case 'morning': return '09:00:00'
+        case 'afternoon': return '14:00:00' 
+        case 'evening': return '18:00:00'
+        default: return '09:00:00'
+      }
+    };
+    
+    const slotTime = getTimeForSlot(slotId);
+    
+    // Contar apenas agendamentos do turno específico
+    return queueData.filter(appointment => {
+      const appointmentTime = new Date(appointment.scheduled_time);
+      const appointmentTimeStr = appointmentTime.toTimeString().slice(0, 8);
+      return appointmentTimeStr === slotTime && 
+             (appointment.status === 'scheduled' || appointment.status === 'pending_payment');
+    }).length;
   };
 
   const isDateDisabled = (date: Date) => {

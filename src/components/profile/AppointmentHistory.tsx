@@ -145,6 +145,33 @@ export function AppointmentHistory({ appointments, isLoading, onRefresh }: Appoi
     }
   };
 
+  const getQueuePosition = (appointment: Appointment) => {
+    // Obter apenas agendamentos do mesmo dia e turno
+    const appointmentDate = new Date(appointment.scheduled_time);
+    const appointmentTimeStr = appointmentDate.toTimeString().slice(0, 8);
+    
+    const sameSlotAppointments = appointments.filter(apt => {
+      const aptDate = new Date(apt.scheduled_time);
+      const aptTimeStr = aptDate.toTimeString().slice(0, 8);
+      const aptDateStr = aptDate.toDateString();
+      
+      return aptDateStr === appointmentDate.toDateString() && 
+             aptTimeStr === appointmentTimeStr &&
+             (apt.status === 'scheduled' || apt.status === 'pending_payment');
+    }).sort((a, b) => new Date(a.scheduled_time).getTime() - new Date(b.scheduled_time).getTime());
+    
+    const position = sameSlotAppointments.findIndex(apt => apt.id === appointment.id) + 1;
+    return position;
+  };
+
+  const getSlotName = (scheduledTime: string) => {
+    const time = new Date(scheduledTime).toTimeString().slice(0, 5);
+    if (time === '09:00') return 'Manhã';
+    if (time === '14:00') return 'Tarde';
+    if (time === '18:00') return 'Noite';
+    return 'Turno';
+  };
+
   const renderAppointmentCard = (appointment: Appointment, isNext: boolean = false) => (
     <div 
       key={appointment.id} 
@@ -182,10 +209,12 @@ export function AppointmentHistory({ appointments, isLoading, onRefresh }: Appoi
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span>{new Date(appointment.scheduled_time).toLocaleDateString('pt-BR')}</span>
-            <span>{new Date(appointment.scheduled_time).toLocaleTimeString('pt-BR', { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            })}</span>
+            <span>{getSlotName(appointment.scheduled_time)}</span>
+            {(appointment.status === 'scheduled' || appointment.status === 'pending_payment') && (
+              <span className="font-medium text-primary">
+                Posição na fila: {getQueuePosition(appointment)}
+              </span>
+            )}
             <span>{appointment.services?.duration_minutes}min</span>
           </div>
           
