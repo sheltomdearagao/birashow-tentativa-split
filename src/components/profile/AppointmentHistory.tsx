@@ -166,7 +166,7 @@ export function AppointmentHistory({ appointments, isLoading, onRefresh }: Appoi
 
   const getSlotName = (scheduledTime: string) => {
     const time = new Date(scheduledTime).toTimeString().slice(0, 5);
-    if (time === '09:00') return 'Manhã';
+    if (time === '10:00') return 'Manhã';  // Corrigido para 10:00
     if (time === '14:00') return 'Tarde';
     if (time === '18:00') return 'Noite';
     return 'Turno';

@@ -156,10 +156,10 @@ Deno.serve(async (req) => {
     // Mapear turno para horário específico
     const getTimeForSlot = (timeSlot: string) => {
       switch (timeSlot) {
-        case 'morning': return '09:00:00'
+        case 'morning': return '10:00:00'  // Corrigido para 10:00
         case 'afternoon': return '14:00:00' 
         case 'evening': return '18:00:00'
-        default: return '09:00:00'
+        default: return '10:00:00'
       }
     }
 

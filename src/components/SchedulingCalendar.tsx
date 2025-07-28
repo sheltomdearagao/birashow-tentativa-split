@@ -26,7 +26,7 @@ interface TimeSlot {
 }
 
 const TIME_SLOTS: TimeSlot[] = [
-  { id: "morning", label: "Manhã", startTime: "09:00", endTime: "12:00", maxSlots: 5 },
+  { id: "morning", label: "Manhã", startTime: "10:00", endTime: "12:00", maxSlots: 5 },
   { id: "afternoon", label: "Tarde", startTime: "14:00", endTime: "18:00", maxSlots: 5 },
   { id: "evening", label: "Noite", startTime: "18:00", endTime: "21:00", maxSlots: 5 }
 ];
@@ -107,10 +107,10 @@ export function SchedulingCalendar({ selectedServices, user, onBack, onScheduled
     // Mapear turno para horário específico
     const getTimeForSlot = (slotId: string) => {
       switch (slotId) {
-        case 'morning': return '09:00:00'
+        case 'morning': return '10:00:00'  // Corrigido para 10:00 como no banco
         case 'afternoon': return '14:00:00' 
         case 'evening': return '18:00:00'
-        default: return '09:00:00'
+        default: return '10:00:00'
       }
     };
     
