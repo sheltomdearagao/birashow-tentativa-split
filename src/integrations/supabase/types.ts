@@ -21,9 +21,11 @@ export type Database = {
           customer_id: string
           id: string
           notes: string | null
+          queue_position: number | null
           scheduled_time: string
           service_id: string
           status: string
+          time_slot: string | null
           updated_at: string
         }
         Insert: {
@@ -32,9 +34,11 @@ export type Database = {
           customer_id: string
           id?: string
           notes?: string | null
+          queue_position?: number | null
           scheduled_time: string
           service_id: string
           status?: string
+          time_slot?: string | null
           updated_at?: string
         }
         Update: {
@@ -43,9 +47,11 @@ export type Database = {
           customer_id?: string
           id?: string
           notes?: string | null
+          queue_position?: number | null
           scheduled_time?: string
           service_id?: string
           status?: string
+          time_slot?: string | null
           updated_at?: string
         }
         Relationships: [

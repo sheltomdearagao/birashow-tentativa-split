@@ -153,17 +153,47 @@ Deno.serve(async (req) => {
     const preference = await preferenceResponse.json()
     console.log('Preferência para agendamento criada:', { id: preference.id, init_point: preference.init_point })
 
-    // Mapear turno para horário específico
+    // Buscar próxima posição disponível na fila para o turno escolhido
+    const { data: existingAppointments, error: queueError } = await supabase
+      .from('appointments')
+      .select('queue_position')
+      .gte('scheduled_time', `${scheduled_date}T00:00:00-03:00`)
+      .lt('scheduled_time', `${scheduled_date}T23:59:59-03:00`)
+      .eq('time_slot', time_slot)
+      .eq('status', 'scheduled')
+      .order('queue_position', { ascending: true })
+
+    if (queueError) {
+      console.error('Erro ao buscar fila:', queueError)
+      throw queueError
+    }
+
+    // Encontrar primeira posição disponível (1-5)
+    const occupiedPositions = existingAppointments?.map(apt => apt.queue_position).filter(pos => pos !== null) || []
+    let nextPosition = 1
+    for (let i = 1; i <= 5; i++) {
+      if (!occupiedPositions.includes(i)) {
+        nextPosition = i
+        break
+      }
+    }
+
+    // Verificar se há posição disponível
+    if (nextPosition > 5 || occupiedPositions.length >= 5) {
+      throw new Error('Turno lotado. Escolha outro horário.')
+    }
+
+    // Mapear turno para horário específico (apenas para referência)
     const getTimeForSlot = (timeSlot: string) => {
       switch (timeSlot) {
-        case 'morning': return '10:00:00'  // Corrigido para 10:00
+        case 'morning': return '10:00:00'
         case 'afternoon': return '14:00:00' 
         case 'evening': return '18:00:00'
         default: return '10:00:00'
       }
     }
 
-    // Criar agendamentos pendentes
+    // Criar agendamentos pendentes com posição reservada
     const appointmentPromises = service_ids.map(async (serviceId) => {
       const { data: appointment, error } = await supabase
         .from('appointments')
@@ -173,7 +203,9 @@ Deno.serve(async (req) => {
           scheduled_time: new Date(`${scheduled_date} ${getTimeForSlot(time_slot)}`).toISOString(),
           status: 'pending_payment',
           booking_type: 'app',
-          notes: `Turno: ${time_slot} - Preferência MP: ${preference.id}`
+          notes: `Turno: ${time_slot} - Posição: ${nextPosition} - Preferência MP: ${preference.id}`,
+          time_slot: time_slot,
+          queue_position: nextPosition
         })
         .select()
         .single()

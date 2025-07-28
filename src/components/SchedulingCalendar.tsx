@@ -20,15 +20,13 @@ interface SchedulingCalendarProps {
 interface TimeSlot {
   id: string;
   label: string;
-  startTime: string;
-  endTime: string;
   maxSlots: number;
 }
 
 const TIME_SLOTS: TimeSlot[] = [
-  { id: "morning", label: "Manhã", startTime: "10:00", endTime: "12:00", maxSlots: 5 },
-  { id: "afternoon", label: "Tarde", startTime: "14:00", endTime: "18:00", maxSlots: 5 },
-  { id: "evening", label: "Noite", startTime: "18:00", endTime: "21:00", maxSlots: 5 }
+  { id: "morning", label: "Manhã", maxSlots: 5 },
+  { id: "afternoon", label: "Tarde", maxSlots: 5 },
+  { id: "evening", label: "Noite", maxSlots: 5 }
 ];
 
 export function SchedulingCalendar({ selectedServices, user, onBack, onScheduled }: SchedulingCalendarProps) {
@@ -72,13 +70,13 @@ export function SchedulingCalendar({ selectedServices, user, onBack, onScheduled
       
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       
-      // Buscar agendamentos para a data selecionada (todos os turnos)
+      // Buscar apenas agendamentos confirmados (pagos) para a data selecionada
       const { data, error } = await supabase
         .from('appointments')
         .select('*')
         .gte('scheduled_time', `${dateStr}T00:00:00+00:00`)
         .lt('scheduled_time', `${dateStr}T23:59:59+00:00`)
-        .in('status', ['scheduled', 'pending_payment']);
+        .eq('status', 'scheduled'); // Apenas agendamentos confirmados
       
       if (error) throw error;
       return data || [];
@@ -99,30 +97,25 @@ export function SchedulingCalendar({ selectedServices, user, onBack, onScheduled
   const getSlotOccupancy = (slotId: string) => {
     if (!queueData || !selectedDate) return 0;
     
-    const slot = TIME_SLOTS.find(s => s.id === slotId);
-    if (!slot) return 0;
+    // Contar posições ocupadas por turno (apenas agendamentos confirmados)
+    return queueData.filter(appointment => 
+      appointment.time_slot === slotId && 
+      appointment.status === 'scheduled'
+    ).length;
+  };
 
-    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+  const getOccupiedPositions = (slotId: string) => {
+    if (!queueData || !selectedDate) return [];
     
-    // Mapear turno para horário específico
-    const getTimeForSlot = (slotId: string) => {
-      switch (slotId) {
-        case 'morning': return '10:00:00'  // Corrigido para 10:00 como no banco
-        case 'afternoon': return '14:00:00' 
-        case 'evening': return '18:00:00'
-        default: return '10:00:00'
-      }
-    };
-    
-    const slotTime = getTimeForSlot(slotId);
-    
-    // Contar apenas agendamentos confirmados (pagos) do turno específico
-    return queueData.filter(appointment => {
-      const appointmentTime = new Date(appointment.scheduled_time);
-      const appointmentTimeStr = appointmentTime.toTimeString().slice(0, 8);
-      return appointmentTimeStr === slotTime && 
-             appointment.status === 'scheduled'; // Apenas agendamentos confirmados
-    }).length;
+    // Retornar posições ocupadas por turno
+    return queueData
+      .filter(appointment => 
+        appointment.time_slot === slotId && 
+        appointment.status === 'scheduled'
+      )
+      .map(appointment => appointment.queue_position)
+      .filter(pos => pos !== null)
+      .sort((a, b) => a - b);
   };
 
   const isDateDisabled = (date: Date) => {
@@ -272,7 +265,7 @@ export function SchedulingCalendar({ selectedServices, user, onBack, onScheduled
                         <div>
                           <h4 className="font-medium">{slot.label}</h4>
                           <p className="text-sm text-muted-foreground">
-                            {slot.startTime} às {slot.endTime}
+                            Posições ocupadas: {getOccupiedPositions(slot.id).join(', ') || 'Nenhuma'}
                           </p>
                         </div>
                         <div className="text-right">

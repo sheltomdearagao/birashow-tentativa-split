@@ -12,6 +12,8 @@ interface Appointment {
   id: string;
   scheduled_time: string;
   status: string;
+  queue_position?: number;
+  time_slot?: string;
   services?: {
     id: string;
     name: string;
@@ -146,7 +148,12 @@ export function AppointmentHistory({ appointments, isLoading, onRefresh }: Appoi
   };
 
   const getQueuePosition = (appointment: Appointment) => {
-    // Obter apenas agendamentos do mesmo dia e turno
+    // Se o agendamento tem queue_position, usar diretamente
+    if (appointment.queue_position) {
+      return appointment.queue_position;
+    }
+    
+    // Fallback para agendamentos antigos
     const appointmentDate = new Date(appointment.scheduled_time);
     const appointmentTimeStr = appointmentDate.toTimeString().slice(0, 8);
     
@@ -164,9 +171,20 @@ export function AppointmentHistory({ appointments, isLoading, onRefresh }: Appoi
     return position;
   };
 
-  const getSlotName = (scheduledTime: string) => {
-    const time = new Date(scheduledTime).toTimeString().slice(0, 5);
-    if (time === '10:00') return 'Manhã';  // Corrigido para 10:00
+  const getSlotName = (appointment: Appointment) => {
+    // Se tem time_slot, usar diretamente
+    if (appointment.time_slot) {
+      switch (appointment.time_slot) {
+        case 'morning': return 'Manhã';
+        case 'afternoon': return 'Tarde';
+        case 'evening': return 'Noite';
+        default: return 'Turno';
+      }
+    }
+    
+    // Fallback para agendamentos antigos baseado no horário
+    const time = new Date(appointment.scheduled_time).toTimeString().slice(0, 5);
+    if (time === '10:00') return 'Manhã';
     if (time === '14:00') return 'Tarde';
     if (time === '18:00') return 'Noite';
     return 'Turno';
@@ -209,7 +227,7 @@ export function AppointmentHistory({ appointments, isLoading, onRefresh }: Appoi
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span>{new Date(appointment.scheduled_time).toLocaleDateString('pt-BR')}</span>
-            <span>{getSlotName(appointment.scheduled_time)}</span>
+            <span>{getSlotName(appointment)}</span>
             {(appointment.status === 'scheduled' || appointment.status === 'pending_payment') && (
               <span className="font-medium text-primary">
                 Posição na fila: {getQueuePosition(appointment)}
