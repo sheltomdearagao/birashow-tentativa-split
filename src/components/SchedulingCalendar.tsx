@@ -72,12 +72,13 @@ export function SchedulingCalendar({ selectedServices, user, onBack, onScheduled
       
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       
-      // Buscar agendamentos confirmados para a data selecionada
+      // Buscar agendamentos para a data selecionada (todos os turnos)
       const { data, error } = await supabase
         .from('appointments')
         .select('*')
-        .eq('scheduled_time', `${dateStr}T10:00:00+00:00`)
-        .in('status', ['scheduled', 'pending_payment']); // Incluir ambos os status
+        .gte('scheduled_time', `${dateStr}T00:00:00+00:00`)
+        .lt('scheduled_time', `${dateStr}T23:59:59+00:00`)
+        .in('status', ['scheduled', 'pending_payment']);
       
       if (error) throw error;
       return data || [];

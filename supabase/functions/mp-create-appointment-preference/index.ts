@@ -153,6 +153,16 @@ Deno.serve(async (req) => {
     const preference = await preferenceResponse.json()
     console.log('Preferência para agendamento criada:', { id: preference.id, init_point: preference.init_point })
 
+    // Mapear turno para horário específico
+    const getTimeForSlot = (timeSlot: string) => {
+      switch (timeSlot) {
+        case 'morning': return '09:00:00'
+        case 'afternoon': return '14:00:00' 
+        case 'evening': return '18:00:00'
+        default: return '09:00:00'
+      }
+    }
+
     // Criar agendamentos pendentes
     const appointmentPromises = service_ids.map(async (serviceId) => {
       const { data: appointment, error } = await supabase
@@ -160,10 +170,10 @@ Deno.serve(async (req) => {
         .insert({
           customer_id: customerProfile.id,
           service_id: serviceId,
-          scheduled_time: new Date(`${scheduled_date} 10:00:00`).toISOString(), // Tempo será ajustado após pagamento
-          status: 'pending_payment', // Novo status
+          scheduled_time: new Date(`${scheduled_date} ${getTimeForSlot(time_slot)}`).toISOString(),
+          status: 'pending_payment',
           booking_type: 'app',
-          notes: `Preferência MP: ${preference.id}`
+          notes: `Turno: ${time_slot} - Preferência MP: ${preference.id}`
         })
         .select()
         .single()
