@@ -116,12 +116,12 @@ export function SchedulingCalendar({ selectedServices, user, onBack, onScheduled
     
     const slotTime = getTimeForSlot(slotId);
     
-    // Contar apenas agendamentos do turno específico
+    // Contar apenas agendamentos confirmados (pagos) do turno específico
     return queueData.filter(appointment => {
       const appointmentTime = new Date(appointment.scheduled_time);
       const appointmentTimeStr = appointmentTime.toTimeString().slice(0, 8);
       return appointmentTimeStr === slotTime && 
-             (appointment.status === 'scheduled' || appointment.status === 'pending_payment');
+             appointment.status === 'scheduled'; // Apenas agendamentos confirmados
     }).length;
   };
 
