@@ -28,15 +28,27 @@ export function ProfileInfo({ user, profile }: ProfileInfoProps) {
     mutationFn: async (data: { full_name: string; phone: string }) => {
       if (!user?.id) throw new Error('Usuário não autenticado');
       
-      const { error } = await supabase
+      // Try to update existing profile first
+      const { error: updateError } = await supabase
         .from('profiles')
-        .upsert({ 
-          user_id: user.id, 
+        .update({ 
           full_name: data.full_name, 
           phone: data.phone 
-        });
+        })
+        .eq('user_id', user.id);
       
-      if (error) throw error;
+      // If no rows were updated, create the profile
+      if (updateError) {
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert({ 
+            user_id: user.id, 
+            full_name: data.full_name, 
+            phone: data.phone 
+          });
+        
+        if (insertError) throw insertError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
