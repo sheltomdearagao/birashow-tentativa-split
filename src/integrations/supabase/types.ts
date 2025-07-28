@@ -436,6 +436,53 @@ export type Database = {
         }
         Relationships: []
       }
+      walk_in_clients: {
+        Row: {
+          client_name: string
+          created_at: string
+          id: string
+          queue_position: number | null
+          scheduled_time: string | null
+          service_id: string
+          service_name: string
+          service_price: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          client_name: string
+          created_at?: string
+          id?: string
+          queue_position?: number | null
+          scheduled_time?: string | null
+          service_id: string
+          service_name: string
+          service_price: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          client_name?: string
+          created_at?: string
+          id?: string
+          queue_position?: number | null
+          scheduled_time?: string | null
+          service_id?: string
+          service_name?: string
+          service_price?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "walk_in_clients_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
