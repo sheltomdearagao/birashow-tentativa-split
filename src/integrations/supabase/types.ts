@@ -14,7 +14,299 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      appointments: {
+        Row: {
+          booking_type: string
+          created_at: string
+          customer_id: string
+          id: string
+          scheduled_time: string
+          service_id: string
+          status: string
+          total_price: number | null
+          updated_at: string
+        }
+        Insert: {
+          booking_type?: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          scheduled_time: string
+          service_id: string
+          status?: string
+          total_price?: number | null
+          updated_at?: string
+        }
+        Update: {
+          booking_type?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          scheduled_time?: string
+          service_id?: string
+          status?: string
+          total_price?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "appointments_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_queue: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          queue_date: string
+          queue_position: number
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          queue_date?: string
+          queue_position: number
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          queue_date?: string
+          queue_position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_queue_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketplace_config: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean | null
+          mercado_pago_access_token: string | null
+          mercado_pago_user_id: string | null
+          platform_fee_percentage: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          mercado_pago_access_token?: string | null
+          mercado_pago_user_id?: string | null
+          platform_fee_percentage?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          mercado_pago_access_token?: string | null
+          mercado_pago_user_id?: string | null
+          platform_fee_percentage?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      products: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean | null
+          name: string
+          price: number
+          seller_id: string
+          stock_quantity: number | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          name: string
+          price: number
+          seller_id: string
+          stock_quantity?: number | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          name?: string
+          price?: number
+          seller_id?: string
+          stock_quantity?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      services: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration_minutes: number | null
+          id: string
+          is_active: boolean | null
+          name: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          price: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      split_payments: {
+        Row: {
+          appointment_id: string | null
+          created_at: string
+          id: string
+          mercado_pago_payment_id: string | null
+          payment_id: string
+          platform_fee: number
+          product_id: string | null
+          seller_amount: number
+          seller_id: string
+          status: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_at?: string
+          id?: string
+          mercado_pago_payment_id?: string | null
+          payment_id: string
+          platform_fee: number
+          product_id?: string | null
+          seller_amount: number
+          seller_id: string
+          status?: string
+          total_amount: number
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string | null
+          created_at?: string
+          id?: string
+          mercado_pago_payment_id?: string | null
+          payment_id?: string
+          platform_fee?: number
+          product_id?: string | null
+          seller_amount?: number
+          seller_id?: string
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "split_payments_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "split_payments_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "split_payments_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
