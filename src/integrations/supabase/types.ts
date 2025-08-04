@@ -130,6 +130,119 @@ export type Database = {
         }
         Relationships: []
       }
+      mp_oauth_states: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          state: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          state: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          state?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      mp_oauth_tokens: {
+        Row: {
+          created_at: string
+          encrypted_access_token: string
+          encrypted_refresh_token: string | null
+          expires_at: string | null
+          id: string
+          mp_user_id: string
+          public_key: string | null
+          seller_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          encrypted_access_token: string
+          encrypted_refresh_token?: string | null
+          expires_at?: string | null
+          id?: string
+          mp_user_id: string
+          public_key?: string | null
+          seller_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          encrypted_access_token?: string
+          encrypted_refresh_token?: string | null
+          expires_at?: string | null
+          id?: string
+          mp_user_id?: string
+          public_key?: string | null
+          seller_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mp_oauth_tokens_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_items: {
+        Row: {
+          created_at: string
+          id: string
+          order_id: string
+          product_id: string
+          quantity: number
+          total_price: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          order_id: string
+          product_id: string
+          quantity: number
+          total_price: number
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          order_id?: string
+          product_id?: string
+          quantity?: number
+          total_price?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           buyer_id: string
@@ -341,8 +454,11 @@ export type Database = {
           created_at: string
           id: string
           mercado_pago_payment_id: string | null
+          mp_collector_id: string | null
+          order_id: string | null
           payment_id: string
           platform_fee: number
+          processed_at: string | null
           product_id: string | null
           seller_amount: number
           seller_id: string
@@ -355,8 +471,11 @@ export type Database = {
           created_at?: string
           id?: string
           mercado_pago_payment_id?: string | null
+          mp_collector_id?: string | null
+          order_id?: string | null
           payment_id: string
           platform_fee: number
+          processed_at?: string | null
           product_id?: string | null
           seller_amount: number
           seller_id: string
@@ -369,8 +488,11 @@ export type Database = {
           created_at?: string
           id?: string
           mercado_pago_payment_id?: string | null
+          mp_collector_id?: string | null
+          order_id?: string | null
           payment_id?: string
           platform_fee?: number
+          processed_at?: string | null
           product_id?: string | null
           seller_amount?: number
           seller_id?: string
@@ -384,6 +506,13 @@ export type Database = {
             columns: ["appointment_id"]
             isOneToOne: false
             referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "split_payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
           {
