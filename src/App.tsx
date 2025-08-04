@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Perfil from "./pages/Perfil";
 import MarketplacePage from "./pages/MarketplacePage";
+import MercadoPagoAuth from "./pages/MercadoPagoAuth";
 import AgendamentoConfirmado from "./pages/AgendamentoConfirmado";
 import AgendamentoErro from "./pages/AgendamentoErro";
 import AgendamentoPendente from "./pages/AgendamentoPendente";
@@ -25,6 +26,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/perfil" element={<Perfil />} />
           <Route path="/marketplace" element={<MarketplacePage />} />
+          <Route path="/mp-auth" element={<MercadoPagoAuth />} />
           <Route path="/agendamento-confirmado" element={<AgendamentoConfirmado />} />
           <Route path="/agendamento-erro" element={<AgendamentoErro />} />
           <Route path="/agendamento-pendente" element={<AgendamentoPendente />} />

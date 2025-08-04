@@ -136,17 +136,8 @@ Deno.serve(async (req) => {
       .eq('is_active', true)
       .single()
 
-    // Calcular taxa de aplicação (application fee)
-    const feePercentage = sellerConfig?.custom_fee_percentage || 
-                         marketplaceConfig?.default_fee_percentage || 
-                         marketplace_fee_percentage
-    
-    let applicationFee = (totalAmount * feePercentage) / 100
-    
-    // Aplicar valor mínimo de taxa
-    if (marketplaceConfig?.min_fee_amount && applicationFee < marketplaceConfig.min_fee_amount) {
-      applicationFee = marketplaceConfig.min_fee_amount
-    }
+    // Taxa fixa de R$ 1,00 para a plataforma
+    const applicationFee = 1.00
 
     // Buscar collector_id do vendedor
     const { data: sellerMPData } = await supabase
@@ -265,7 +256,7 @@ Deno.serve(async (req) => {
         total_amount: totalAmount,
         application_fee: applicationFee,
         seller_amount: totalAmount - applicationFee,
-        fee_percentage: feePercentage
+        fee_percentage: 1.00
       }),
       { 
         headers: { 
