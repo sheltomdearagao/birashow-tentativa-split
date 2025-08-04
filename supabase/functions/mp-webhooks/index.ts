@@ -165,8 +165,14 @@ async function processPaymentWebhook(supabase: any, data: any) {
       status: payment.status, 
       external_reference: payment.external_reference,
       order: payment.order,
-      metadata: payment.metadata
+      metadata: payment.metadata,
+      application_fee: payment.fee_details?.find((f: any) => f.type === 'application_fee')?.amount || 0
     })
+
+    // Processar split de pagamento se houver order_id no metadata
+    if (payment.metadata?.order_id) {
+      await processSplitPayment(supabase, payment)
+    }
 
     // Buscar agendamentos pendentes - vamos tentar múltiplas abordagens
     let pendingAppointments = null
@@ -247,6 +253,115 @@ async function processPaymentWebhook(supabase: any, data: any) {
     
   } catch (error) {
     console.error('Erro ao processar payment webhook:', error)
+  }
+}
+
+async function processSplitPayment(supabase: any, payment: any) {
+  try {
+    const orderId = payment.metadata.order_id
+    const paymentId = payment.id.toString()
+    
+    console.log('Processando split payment para order:', orderId)
+
+    // Buscar dados do pedido
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .single()
+
+    if (orderError || !order) {
+      console.error('Erro ao buscar pedido:', orderError)
+      return
+    }
+
+    // Mapear status do Mercado Pago para nosso sistema
+    let orderStatus = 'pending'
+    let splitStatus = 'pending'
+
+    switch (payment.status) {
+      case 'approved':
+        orderStatus = 'paid'
+        splitStatus = 'approved'
+        break
+      case 'pending':
+        orderStatus = 'pending'
+        splitStatus = 'pending'
+        break
+      case 'cancelled':
+      case 'rejected':
+        orderStatus = 'cancelled'
+        splitStatus = 'rejected'
+        break
+      default:
+        orderStatus = payment.status
+        splitStatus = payment.status
+    }
+
+    // Calcular valores do split
+    const applicationFee = payment.fee_details?.find((f: any) => f.type === 'application_fee')?.amount || 0
+    const sellerAmount = payment.transaction_amount - applicationFee
+
+    // Atualizar status do pedido
+    const { error: orderUpdateError } = await supabase
+      .from('orders')
+      .update({ 
+        status: orderStatus,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', orderId)
+
+    if (orderUpdateError) {
+      console.error('Erro ao atualizar pedido:', orderUpdateError)
+    }
+
+    // Criar ou atualizar registro de split payment
+    const { error: splitError } = await supabase
+      .from('split_payments')
+      .upsert({
+        order_id: orderId,
+        payment_id: paymentId,
+        total_amount: payment.transaction_amount,
+        seller_amount: sellerAmount,
+        marketplace_fee: applicationFee,
+        mp_collector_id: payment.collector_id,
+        status: splitStatus,
+        processed_at: splitStatus === 'approved' ? new Date().toISOString() : null
+      }, {
+        onConflict: 'payment_id'
+      })
+
+    if (splitError) {
+      console.error('Erro ao criar/atualizar split payment:', splitError)
+    }
+
+    // Se aprovado, reduzir estoque dos produtos
+    if (splitStatus === 'approved') {
+      const { data: orderItems } = await supabase
+        .from('order_items')
+        .select('product_id, quantity')
+        .eq('order_id', orderId)
+
+      if (orderItems) {
+        for (const item of orderItems) {
+          const { error: stockError } = await supabase
+            .from('products')
+            .update({ 
+              stock_quantity: supabase.sql`stock_quantity - ${item.quantity}` 
+            })
+            .eq('id', item.product_id)
+
+          if (stockError) {
+            console.error('Erro ao reduzir estoque:', stockError)
+          }
+        }
+      }
+    }
+
+    console.log(`Split payment processado: order=${orderId}, payment=${paymentId}, status=${splitStatus}, seller_amount=${sellerAmount}, marketplace_fee=${applicationFee}`)
+    
+  } catch (error) {
+    console.error('Erro ao processar split payment:', error)
   }
 }
 

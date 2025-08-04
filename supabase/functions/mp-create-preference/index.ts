@@ -121,20 +121,64 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Calcular taxa do marketplace
-    const marketplaceFee = (totalAmount * marketplace_fee_percentage) / 100
+    // Buscar configuração de taxa do marketplace
+    const { data: marketplaceConfig } = await supabase
+      .from('marketplace_config')
+      .select('default_fee_percentage, min_fee_amount, max_fee_percentage')
+      .eq('is_active', true)
+      .single()
 
-    // Criar preferência no Mercado Pago
+    // Verificar configuração personalizada do vendedor
+    const { data: sellerConfig } = await supabase
+      .from('seller_split_config')
+      .select('custom_fee_percentage')
+      .eq('seller_id', sellerId)
+      .eq('is_active', true)
+      .single()
+
+    // Calcular taxa de aplicação (application fee)
+    const feePercentage = sellerConfig?.custom_fee_percentage || 
+                         marketplaceConfig?.default_fee_percentage || 
+                         marketplace_fee_percentage
+    
+    let applicationFee = (totalAmount * feePercentage) / 100
+    
+    // Aplicar valor mínimo de taxa
+    if (marketplaceConfig?.min_fee_amount && applicationFee < marketplaceConfig.min_fee_amount) {
+      applicationFee = marketplaceConfig.min_fee_amount
+    }
+
+    // Buscar collector_id do vendedor
+    const { data: sellerMPData } = await supabase
+      .from('mp_oauth_tokens')
+      .select('mp_user_id')
+      .eq('seller_id', sellerId)
+      .single()
+
+    if (!sellerMPData?.mp_user_id) {
+      throw new Error('Dados do Mercado Pago do vendedor não encontrados')
+    }
+
+    // Criar preferência no Mercado Pago com split payment
     const preferenceData = {
       items: preferenceItems,
-      marketplace_fee: marketplaceFee,
+      application_fee: applicationFee,
+      payment_methods: {
+        excluded_payment_types: [],
+        installments: 12
+      },
       back_urls: {
         success: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mp-payment-success`,
         failure: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mp-payment-failure`,
         pending: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mp-payment-pending`
       },
       auto_return: 'approved',
-      notification_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mp-webhooks`
+      notification_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mp-webhooks`,
+      metadata: {
+        order_id: 'ORDER_ID_PLACEHOLDER',
+        seller_id: sellerId,
+        application_fee: applicationFee
+      }
     }
 
     console.log('Criando preferência:', JSON.stringify(preferenceData, null, 2))
@@ -164,7 +208,8 @@ Deno.serve(async (req) => {
         buyer_id: buyerProfile.id,
         seller_id: sellerId,
         total_amount: totalAmount,
-        marketplace_fee: marketplaceFee,
+        marketplace_fee: applicationFee,
+        mp_application_fee: applicationFee,
         mp_preference_id: preference.id,
         status: 'pending'
       }])
@@ -197,13 +242,30 @@ Deno.serve(async (req) => {
       throw new Error('Erro ao criar itens do pedido')
     }
 
+    // Atualizar metadata da preferência com order_id
+    const updatedMetadata = {
+      ...preferenceData.metadata,
+      order_id: order.id
+    }
+
+    await fetch(`https://api.mercadopago.com/checkout/preferences/${preference.id}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ metadata: updatedMetadata })
+    })
+
     return new Response(
       JSON.stringify({
         preference_id: preference.id,
         init_point: preference.init_point,
         order_id: order.id,
         total_amount: totalAmount,
-        marketplace_fee: marketplaceFee
+        application_fee: applicationFee,
+        seller_amount: totalAmount - applicationFee,
+        fee_percentage: feePercentage
       }),
       { 
         headers: { 
