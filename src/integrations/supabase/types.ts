@@ -130,6 +130,60 @@ export type Database = {
         }
         Relationships: []
       }
+      orders: {
+        Row: {
+          buyer_id: string
+          created_at: string
+          id: string
+          marketplace_fee: number | null
+          mp_application_fee: number | null
+          mp_preference_id: string | null
+          seller_id: string
+          status: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          buyer_id: string
+          created_at?: string
+          id?: string
+          marketplace_fee?: number | null
+          mp_application_fee?: number | null
+          mp_preference_id?: string | null
+          seller_id: string
+          status?: string
+          total_amount: number
+          updated_at?: string
+        }
+        Update: {
+          buyer_id?: string
+          created_at?: string
+          id?: string
+          marketplace_fee?: number | null
+          mp_application_fee?: number | null
+          mp_preference_id?: string | null
+          seller_id?: string
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "sellers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           category: string
