@@ -207,6 +207,47 @@ export type Database = {
         }
         Relationships: []
       }
+      sellers: {
+        Row: {
+          business_name: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          mp_user_id: string | null
+          profile_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          business_name: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          mp_user_id?: string | null
+          profile_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          business_name?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          mp_user_id?: string | null
+          profile_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sellers_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       services: {
         Row: {
           created_at: string
