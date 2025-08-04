@@ -15,9 +15,9 @@ interface Product {
   image_url: string
   stock_quantity: number
   seller_id: string
-  sellers: {
+  sellers?: {
     business_name: string
-  }
+  } | null
 }
 
 interface MarketplaceProps {
@@ -41,14 +41,14 @@ export const Marketplace = ({ currentUser }: MarketplaceProps) => {
         .from('products')
         .select(`
           *,
-          sellers!inner(business_name)
+          sellers(business_name)
         `)
         .eq('is_active', true)
         .gt('stock_quantity', 0)
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setProducts(data || [])
+      setProducts((data as any) || [])
     } catch (error: any) {
       console.error('Erro ao buscar produtos:', error)
       toast({
@@ -226,7 +226,7 @@ export const Marketplace = ({ currentUser }: MarketplaceProps) => {
               </div>
 
               <div className="text-sm text-muted-foreground">
-                Vendido por: {product.sellers.business_name}
+                Vendido por: {product.sellers?.business_name || 'Vendedor'}
               </div>
 
               <div className="flex items-center justify-between">

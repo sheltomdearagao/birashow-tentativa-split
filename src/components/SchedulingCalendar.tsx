@@ -103,13 +103,13 @@ export function SchedulingCalendar({
     if (!queueData || !selectedDate) return 0;
 
     // Contar posições ocupadas por turno (apenas agendamentos confirmados)
-    return queueData.filter(appointment => appointment.time_slot === slotId && appointment.status === 'scheduled').length;
+    return queueData.filter(appointment => (appointment as any).time_slot === slotId && appointment.status === 'scheduled').length;
   };
   const getOccupiedPositions = (slotId: string) => {
     if (!queueData || !selectedDate) return [];
 
     // Retornar posições ocupadas por turno
-    return queueData.filter(appointment => appointment.time_slot === slotId && appointment.status === 'scheduled').map(appointment => appointment.queue_position).filter(pos => pos !== null).sort((a, b) => a - b);
+    return queueData.filter(appointment => (appointment as any).time_slot === slotId && appointment.status === 'scheduled').map(appointment => (appointment as any).queue_position).filter(pos => pos !== null).sort((a, b) => a - b);
   };
   const isDateDisabled = (date: Date) => {
     return isMonday(date) || isSunday(date) || date < new Date();

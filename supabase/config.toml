@@ -1,1 +1,19 @@
 project_id = "jqzvaqkaenwdinfxzqmd"
+
+[functions.mp-oauth-authorize]
+verify_jwt = true
+
+[functions.mp-oauth-callback]
+verify_jwt = false
+
+[functions.mp-webhooks]
+verify_jwt = false
+
+[functions.mp-create-appointment-preference]
+verify_jwt = true
+
+[functions.mp-create-preference]
+verify_jwt = true
+
+[functions.mp-create-payment-preference]
+verify_jwt = true
