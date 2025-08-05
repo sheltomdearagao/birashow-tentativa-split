@@ -1,4 +1,14 @@
 import React, { useState } from 'react';
+import React, { useState } from 'react';
+import { createClient } from '@supabase/supabase-js'; // Importe o createClient
+
+// Crie o cliente Supabase com as suas chaves PÚBLICAS
+// É seguro colocar essas chaves no frontend.
+const supabaseUrl = 'SEU_SUPABASE_URL'; // Pegue no painel da Supabase em Settings > API
+const supabaseAnonKey = 'SUA_SUPABASE_ANON_KEY'; // Pegue no painel da Supabase em Settings > API
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// ... resto do seu componente
 
 // Este é o seu componente/página React
 const MercadoPagoAuthPage = () => {
