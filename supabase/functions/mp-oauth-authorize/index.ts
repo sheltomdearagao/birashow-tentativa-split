@@ -35,18 +35,14 @@ Deno.serve(async (req) => {
     const state = crypto.randomUUID()
     
     // Buscar credenciais do Mercado Pago
-    const { data: secretData, error: secretError } = await supabase
-      .from('vault.decrypted_secrets')
-      .select('secret')
-      .eq('name', 'MP_CLIENT_ID')
-      .single()
+    const YOUR_APP_CLIENT_ID = Deno.env.get('MP_CLIENT_ID');
+    const YOUR_APP_CLIENT_SECRET = Deno.env.get('MP_CLIENT_SECRET');
 
-    if (secretError || !secretData) {
-      console.error('Erro ao buscar MP_CLIENT_ID:', secretError)
+    if (!YOUR_APP_CLIENT_ID || !YOUR_APP_CLIENT_SECRET) {
       throw new Error('Credenciais não encontradas')
     }
 
-    const clientId = secretData.secret
+    const clientId = YOUR_APP_CLIENT_ID
 
     // Construir URL de autorização
     const authUrl = new URL('https://auth.mercadopago.com/authorization')
