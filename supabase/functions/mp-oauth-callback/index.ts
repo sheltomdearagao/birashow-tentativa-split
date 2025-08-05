@@ -1,199 +1,162 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { Buffer } from 'https://deno.land/std@0.138.0/node/buffer.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
+// --- Início da Função Principal ---
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
+  // Lida com a requisição CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const url = new URL(req.url)
-    const code = url.searchParams.get('code')
-    const state = url.searchParams.get('state')
-    const error = url.searchParams.get('error')
-
-    // Verificar se houve erro na autorização
-    if (error) {
-      console.error('Erro na autorização MP:', error)
-      return new Response(
-        `<html><body><script>window.close();</script><p>Erro na autorização: ${error}</p></body></html>`,
-        { headers: { 'Content-Type': 'text/html' } }
-      )
-    }
+    // --- 1. Extração e Validação Inicial dos Parâmetros ---
+    const url = new URL(req.url);
+    const code = url.searchParams.get('code');
+    const state = url.searchParams.get('state');
 
     if (!code || !state) {
-      throw new Error('Código ou state não fornecidos')
+      throw new Error('Parâmetros inválidos: o código de autorização e o state são obrigatórios.');
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '' // Service role para operações admin
-    )
+    // --- 2. Inicialização do Cliente Supabase com Permissões de Admin ---
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    // Buscar credenciais do MP
-    const { data: clientIdData } = await supabase
-      .from('vault.decrypted_secrets')
-      .select('secret')
-      .eq('name', 'MP_CLIENT_ID')
-      .single()
-
-    const { data: clientSecretData } = await supabase
-      .from('vault.decrypted_secrets')
-      .select('secret')
-      .eq('name', 'MP_CLIENT_SECRET')
-      .single()
-
-    if (!clientIdData || !clientSecretData) {
-      throw new Error('Credenciais MP não encontradas')
+    if (!supabaseUrl || !serviceRoleKey) {
+      throw new Error('Erro de configuração do servidor: as variáveis de ambiente da Supabase não foram encontradas.');
     }
 
-    const clientId = clientIdData.secret
-    const clientSecret = clientSecretData.secret
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-    // Trocar código por tokens
+    // --- 3. Busca das Credenciais da Aplicação no Supabase Vault ---
+    // Fazemos uma única query para buscar ambos os segredos
+    const { data: secretsData, error: secretsError } = await supabaseAdmin
+      .from('vault.decrypted_secrets')
+      .select('name, secret')
+      .in('name', ['MP_CLIENT_ID', 'MP_CLIENT_SECRET']);
+
+    if (secretsError || !secretsData || secretsData.length < 2) {
+      console.error('Erro ao buscar segredos do Vault:', secretsError);
+      throw new Error('Não foi possível obter as credenciais da aplicação no Vault.');
+    }
+    
+    const clientId = secretsData.find(s => s.name === 'MP_CLIENT_ID')?.secret;
+    const clientSecret = secretsData.find(s => s.name === 'MP_CLIENT_SECRET')?.secret;
+
+    if (!clientId || !clientSecret) {
+      throw new Error('Credenciais da aplicação (MP_CLIENT_ID ou MP_CLIENT_SECRET) não encontradas no Vault.');
+    }
+
+    // --- 4. Troca do Código de Autorização pelo Access Token do Vendedor ---
     const tokenResponse = await fetch('https://api.mercadopago.com/oauth/token', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         client_id: clientId,
         client_secret: clientSecret,
         code: code,
-        redirect_uri: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mp-oauth-callback`
-      }).toString()
-    })
+        redirect_uri: `${supabaseUrl}/functions/v1/mp-oauth-callback`,
+      }).toString(),
+    });
+
+    const tokenData = await tokenResponse.json();
 
     if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text()
-      console.error('Erro ao trocar código por token:', errorText)
-      throw new Error(`Erro ao obter tokens: ${tokenResponse.status}`)
+      console.error('Erro na API do Mercado Pago ao obter token:', tokenData);
+      throw new Error(`Erro ao obter tokens: ${tokenData.message || tokenResponse.status}`);
     }
 
-    const tokenData = await tokenResponse.json()
-    console.log('Tokens recebidos:', { 
-      access_token: tokenData.access_token ? 'presente' : 'ausente',
-      user_id: tokenData.user_id 
-    })
-
-    // Validar state (buscar no banco)
-    const { data: stateData } = await supabase
+    // --- 5. Validação do Parâmetro 'state' para Segurança (CSRF) ---
+    const { data: stateRow, error: stateError } = await supabaseAdmin
       .from('mp_oauth_states')
-      .select('user_id')
+      .delete() // Já deletamos aqui para ser uma operação atômica
       .eq('state', state)
       .gt('expires_at', new Date().toISOString())
-      .single()
+      .select('user_id')
+      .single();
 
-    if (!stateData) {
-      throw new Error('State inválido ou expirado')
+    if (stateError || !stateRow) {
+      throw new Error('State de autorização inválido, expirado ou já utilizado.');
     }
+    const userId = stateRow.user_id;
 
-    const userId = stateData.user_id
-
-    // Criptografar tokens antes de armazenar
-    const encryptionKey = crypto.randomUUID() // Em produção, use uma chave mais segura
+    // --- 6. Armazenamento Seguro dos Tokens do Vendedor ---
+    // A chave de criptografia DEVE ser gerenciada de forma segura (ex: Supabase Vault)
+    const encryptionKey = Deno.env.get('TOKEN_ENCRYPTION_KEY');
+    if (!encryptionKey) {
+        throw new Error('Chave de criptografia não configurada no servidor.');
+    }
     
-    // Buscar ou criar perfil do vendedor
-    let { data: seller } = await supabase
-      .from('sellers')
-      .select('id')
-      .eq('user_id', userId)
-      .single()
+    // Criptografia REAL usando pgsodium
+    const { data: encryptedAccessToken, error: encryptErrorAccess } = await supabaseAdmin.rpc('encrypt_secret', {
+        secret_value: tokenData.access_token,
+        encryption_key: encryptionKey,
+    });
+    
+    const { data: encryptedRefreshToken, error: encryptErrorRefresh } = await supabaseAdmin.rpc('encrypt_secret', {
+        secret_value: tokenData.refresh_token,
+        encryption_key: encryptionKey,
+    });
 
-    if (!seller) {
-      // Buscar perfil do usuário
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .eq('user_id', userId)
-        .single()
-
-      if (!profile) {
-        throw new Error('Perfil do usuário não encontrado')
-      }
-
-      // Criar vendedor
-      const { data: newSeller, error: sellerError } = await supabase
-        .from('sellers')
-        .insert([{
-          user_id: userId,
-          profile_id: profile.id,
-          business_name: profile.full_name || 'Minha Loja',
-          mp_user_id: tokenData.user_id
-        }])
-        .select('id')
-        .single()
-
-      if (sellerError) {
-        console.error('Erro ao criar vendedor:', sellerError)
-        throw new Error('Erro ao criar perfil de vendedor')
-      }
-
-      seller = newSeller
+    if (encryptErrorAccess || encryptErrorRefresh) {
+        console.error('Erro ao criptografar tokens:', encryptErrorAccess || encryptErrorRefresh);
+        throw new Error('Falha de segurança ao preparar credenciais.');
     }
 
-    // Armazenar tokens criptografados
-    const { error: tokenError } = await supabase
+    const tokenInfoToStore = {
+      user_id: userId, // Vinculamos diretamente ao usuário autenticado
+      mp_user_id: tokenData.user_id,
+      encrypted_access_token: encryptedAccessToken,
+      encrypted_refresh_token: encryptedRefreshToken,
+      public_key: tokenData.public_key,
+      expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
+    };
+    
+    const { error: upsertError } = await supabaseAdmin
       .from('mp_oauth_tokens')
-      .upsert([{
-        seller_id: seller.id,
-        encrypted_access_token: btoa(tokenData.access_token), // Base64 simples por ora
-        encrypted_refresh_token: btoa(tokenData.refresh_token),
-        public_key: tokenData.public_key,
-        mp_user_id: tokenData.user_id,
-        expires_at: new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString()
-      }])
+      .upsert(tokenInfoToStore, { onConflict: 'user_id' }); // Atualiza se o usuário já tiver tokens
 
-    if (tokenError) {
-      console.error('Erro ao armazenar tokens:', tokenError)
-      throw new Error('Erro ao armazenar credenciais')
+    if (upsertError) {
+      console.error('Erro ao salvar os tokens do vendedor:', upsertError);
+      throw new Error('Não foi possível armazenar as credenciais do vendedor.');
     }
-
-    // Limpar state usado
-    await supabase
-      .from('mp_oauth_states')
-      .delete()
-      .eq('state', state)
-
-    // Retornar página de sucesso que fecha a janela
+    
+    // --- 7. Retorno de Sucesso para o Frontend ---
     return new Response(
-      `<html>
-        <body>
+      `<html><body>
           <script>
             if (window.opener) {
               window.opener.postMessage({ type: 'MP_AUTH_SUCCESS' }, '*');
               window.close();
             } else {
-              window.location.href = '/';
+              window.location.href = '/sucesso'; // Página de fallback
             }
           </script>
-          <p>Autorização concluída com sucesso! Esta janela será fechada automaticamente.</p>
-        </body>
-      </html>`,
+          <p>Autorização concluída! Esta janela será fechada.</p>
+       </body></html>`,
       { headers: { 'Content-Type': 'text/html' } }
-    )
+    );
 
   } catch (error) {
-    console.error('Erro no callback MP:', error)
+    // --- Bloco de Captura de Erros ---
+    console.error('ERRO GERAL NO FLUXO DE CALLBACK DO MP:', error.message);
     return new Response(
-      `<html>
-        <body>
+      `<html><body>
           <script>
             if (window.opener) {
               window.opener.postMessage({ type: 'MP_AUTH_ERROR', error: '${error.message}' }, '*');
               window.close();
             }
           </script>
-          <p>Erro: ${error.message}</p>
-        </body>
-      </html>`,
+          <p>Ocorreu um erro: ${error.message}</p>
+       </body></html>`,
       { headers: { 'Content-Type': 'text/html' } }
-    )
+    );
   }
-})
+});
