@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 // --- PASSO 1: PREENCHA SUAS CREDENCIAIS AQUI ---
 // Você encontra essas chaves no painel da Supabase em: Settings > API
 const supabaseUrl = 'https://jqzvaqkaenwdinfxzqmd.supabase.co'; // JÁ PREENCHI PRA VOCÊ
-const supabaseAnonKey = 'SUA_SUPABASE_ANON_KEY'; // PREENCHA ESTA CHAVE
+const supabaseAnonKey = '449d795d3dbe4d1c6395119be794fc961c38a48a12150c5380720f200492aa4c'; // PREENCHA ESTA CHAVE
 
 // Cria o cliente Supabase que será usado no componente
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
