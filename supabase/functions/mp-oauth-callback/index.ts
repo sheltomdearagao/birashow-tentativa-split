@@ -24,13 +24,13 @@ Deno.serve(async (req) => {
     const clientSecret = Deno.env.get('MP_CLIENT_SECRET');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const encryptionKey = Deno.env.get('TOKEN_ENCRYPTION_KEY'); // Chave para criptografar os tokens
 
-    if (!clientId || !clientSecret || !supabaseUrl || !serviceRoleKey) {
-      console.error('ERRO DE CONFIGURAÇÃO: Variáveis de ambiente não foram encontradas.');
+    if (!clientId || !clientSecret || !supabaseUrl || !serviceRoleKey || !encryptionKey) {
+      console.error('ERRO DE CONFIGURAÇÃO: Uma ou mais variáveis de ambiente não foram encontradas.');
       throw new Error('Erro de configuração interna do servidor.');
     }
 
-    // --- MUDANÇA PRINCIPAL: TROCANDO AXIOS POR FETCH ---
     const tokenUrl = 'https://api.mercadopago.com/oauth/token';
     const redirectUri = `${supabaseUrl}/functions/v1/mp-oauth-callback`;
 
@@ -44,20 +44,16 @@ Deno.serve(async (req) => {
 
     const tokenResponse = await fetch(tokenUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
       body: body,
     });
     
     const tokenData = await tokenResponse.json();
 
     if (!tokenResponse.ok) {
-        console.error('Erro na API do Mercado Pago ao obter token:', tokenData);
+        console.error('Erro na API do Mercado Pago:', tokenData);
         throw new Error(tokenData.message || 'Falha ao obter o token de acesso.');
     }
-    // --- FIM DA MUDANÇA ---
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
@@ -73,10 +69,45 @@ Deno.serve(async (req) => {
     }
     const userId = stateRow.user_id;
 
-    console.log(`SUCESSO! Token do usuário ${userId} recebido. Vamos salvar no banco.`);
+    // --- PARTE QUE ESTAVA FALTANDO ---
+    // 1. Criptografar os tokens recebidos usando a função do banco de dados
+    const { data: encryptedAccessToken, error: encryptErrorAccess } = await supabaseAdmin.rpc('encrypt_secret', {
+        secret_value: tokenData.access_token,
+        encryption_key: encryptionKey,
+    });
+    
+    const { data: encryptedRefreshToken, error: encryptErrorRefresh } = await supabaseAdmin.rpc('encrypt_secret', {
+        secret_value: tokenData.refresh_token,
+        encryption_key: encryptionKey,
+    });
 
-    // TODO: Adicionar a lógica para criptografar (usando a função SQL) e salvar o token na sua tabela 'mp_oauth_tokens'.
-    // Ex: const { error } = await supabaseAdmin.from('mp_oauth_tokens').upsert({ user_id: userId, encrypted_access_token: ... });
+    if (encryptErrorAccess || encryptErrorRefresh) {
+        console.error('Erro ao criptografar tokens:', encryptErrorAccess || encryptErrorRefresh);
+        throw new Error('Falha de segurança ao preparar credenciais.');
+    }
+
+    // 2. Montar o objeto para salvar na tabela
+    const tokenInfoToStore = {
+      user_id: userId,
+      mp_user_id: tokenData.user_id,
+      encrypted_access_token: encryptedAccessToken,
+      encrypted_refresh_token: encryptedRefreshToken,
+      public_key: tokenData.public_key,
+      expires_at: new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString(),
+    };
+    
+    // 3. Salvar (ou atualizar) os tokens na tabela 'mp_oauth_tokens'
+    const { error: upsertError } = await supabaseAdmin
+      .from('mp_oauth_tokens')
+      .upsert(tokenInfoToStore, { onConflict: 'user_id' });
+
+    if (upsertError) {
+      console.error('Erro ao salvar os tokens do vendedor no banco de dados:', upsertError);
+      throw new Error('Não foi possível armazenar as credenciais do vendedor.');
+    }
+
+    console.log(`SUCESSO! Tokens do usuário ${userId} foram salvos no banco de dados.`);
+    // --- FIM DA PARTE QUE ESTAVA FALTANDO ---
 
     return new Response(
       `<html><body>
