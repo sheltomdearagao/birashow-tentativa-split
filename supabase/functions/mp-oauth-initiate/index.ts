@@ -12,15 +12,24 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Para este exemplo, vamos assumir que o ID do usuário está sendo passado.
-    // Em um app real, você pegaria o ID do usuário logado através do token de autenticação.
-    // Vamos simplificar por enquanto.
-    const MOCK_USER_ID = "a0e84c98-1c32-4913-9a34-7d52f2814300"; // SUBSTITUA POR UM UUID DE USUÁRIO VÁLIDO DA SUA TABELA 'users' OU 'profiles'
+    // Verifica se o usuário está autenticado
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new Error('Token de autorização não fornecido');
+    }
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
+
+    // Verifica o token do usuário
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
+    
+    if (userError || !user) {
+      throw new Error('Token inválido ou usuário não encontrado');
+    }
 
     // Gera o 'state' (nossa chave secreta)
     const state = crypto.randomUUID();
@@ -29,7 +38,7 @@ Deno.serve(async (req) => {
     // Salva a chave no banco de dados para podermos conferir na volta
     const { error: insertError } = await supabaseAdmin
       .from('mp_oauth_states')
-      .insert({ state: state, user_id: MOCK_USER_ID, expires_at: expiresAt });
+      .insert({ state: state, user_id: user.id, expires_at: expiresAt });
 
     if (insertError) {
       console.error("Erro ao salvar o state:", insertError);

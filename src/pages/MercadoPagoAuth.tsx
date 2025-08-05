@@ -29,7 +29,7 @@ const MercadoPagoAuthPage = () => {
       }
 
       // Chama a função de backend 'mp-oauth-initiate' com o token de autorização
-      const response = await fetch('/functions/v1/mp-oauth-initiate', {
+      const response = await fetch('https://jqzvaqkaenwdinfxzqmd.supabase.co/functions/v1/mp-oauth-initiate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

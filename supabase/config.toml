@@ -1,5 +1,8 @@
 project_id = "jqzvaqkaenwdinfxzqmd"
 
+[functions.mp-oauth-initiate]
+verify_jwt = true
+
 [functions.mp-oauth-authorize]
 verify_jwt = true
 
