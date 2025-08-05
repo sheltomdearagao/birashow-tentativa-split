@@ -1,48 +1,49 @@
 import React, { useState } from 'react';
-import React, { useState } from 'react';
-import { createClient } from '@supabase/supabase-js'; // Importe o createClient
+import { createClient } from '@supabase/supabase-js';
 
-// Crie o cliente Supabase com as suas chaves PÚBLICAS
-// É seguro colocar essas chaves no frontend.
-const supabaseUrl = 'SEU_SUPABASE_URL'; // Pegue no painel da Supabase em Settings > API
-const supabaseAnonKey = 'SUA_SUPABASE_ANON_KEY'; // Pegue no painel da Supabase em Settings > API
+// --- PASSO 1: PREENCHA SUAS CREDENCIAIS AQUI ---
+// Você encontra essas chaves no painel da Supabase em: Settings > API
+const supabaseUrl = 'https://jqzvaqkaenwdinfxzqmd.supabase.co'; // JÁ PREENCHI PRA VOCÊ
+const supabaseAnonKey = 'SUA_SUPABASE_ANON_KEY'; // PREENCHA ESTA CHAVE
+
+// Cria o cliente Supabase que será usado no componente
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// ... resto do seu componente
 
-// Este é o seu componente/página React
+// --- INÍCIO DO COMPONENTE REACT ---
 const MercadoPagoAuthPage = () => {
-  // Usamos um 'state' para saber se estamos carregando a requisição
-  // e para desabilitar o botão, evitando múltiplos cliques.
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Esta é a função que será chamada quando o botão for clicado
+  // Função que é chamada quando o botão é clicado
   const handleConnectClick = async () => {
-    setIsLoading(true); // Começamos a carregar
-    setError(null);    // Limpamos erros antigos
+    setIsLoading(true);
+    setError(null);
 
     try {
-      // 1. Chamamos a sua função na Supabase que gera a "chave" (state)
-      // e nos devolve a URL de autorização.
-      // Lembre-se que essa função precisa existir na sua pasta /supabase/functions/mp-oauth-initiate
+      // Pega a sessão do usuário logado para obter o token de acesso
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        throw new Error('Você precisa estar logado para conectar uma conta.');
+      }
+
+      // Chama a função de backend 'mp-oauth-initiate' com o token de autorização
       const response = await fetch('/functions/v1/mp-oauth-initiate', {
-        method: 'POST', // É uma boa prática usar POST para criar um recurso (o 'state')
+        method: 'POST',
         headers: {
-          // Se sua função de 'initiate' precisar de autenticação, passe o token aqui.
-          // Ex: 'Authorization': `Bearer ${supabase.auth.session()?.access_token}`
-        }
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        // Se a resposta do backend der erro, nós o capturamos aqui
         throw new Error(data.error || 'Não foi possível iniciar a conexão.');
       }
 
-      // 2. Se tudo deu certo, pegamos a URL e redirecionamos o usuário
-      // para a página de autorização do Mercado Pago.
+      // Redireciona o usuário para a URL de autorização do Mercado Pago
       const { authorization_url } = data;
       if (authorization_url) {
         window.location.href = authorization_url;
@@ -51,14 +52,13 @@ const MercadoPagoAuthPage = () => {
       }
 
     } catch (err: any) {
-      // Se qualquer parte do processo falhar, mostramos o erro
       console.error('Erro ao conectar com Mercado Pago:', err);
       setError(err.message);
-      setIsLoading(false); // Paramos de carregar
+      setIsLoading(false);
     }
   };
 
-  // Esta é a parte visual do seu componente (o que aparece na tela)
+  // Parte visual do componente (o que é renderizado na tela)
   return (
     <div style={{
       display: 'flex',
@@ -71,7 +71,7 @@ const MercadoPagoAuthPage = () => {
       fontFamily: 'sans-serif'
     }}>
       <h1>Conectar sua Conta do Mercado Pago</h1>
-      <p>Clique no botão abaixo para autorizar o nosso aplicativo a transferir os pagamentos para a sua conta.</p>
+      <p>Clique no botão abaixo para autorizar nosso aplicativo a gerenciar pagamentos.</p>
       
       <button
         onClick={handleConnectClick}
