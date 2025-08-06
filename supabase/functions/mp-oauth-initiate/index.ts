@@ -1,5 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { crypto } from "https://deno.land/std@0.150.0/crypto/mod.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,69 +7,118 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // --- ESTA É A MUDANÇA PRINCIPAL ---
-    // 1. Criamos um cliente Supabase que "herda" a autenticação do frontend.
-    // O token de acesso do usuário é passado no cabeçalho 'Authorization'.
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
-    );
+    const url = new URL(req.url);
+    const code = url.searchParams.get('code');
+    const state = url.searchParams.get('state');
 
-    // 2. Usamos o cliente para pegar as informações do usuário que está logado.
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
-
-    if (userError || !user) {
-      console.error('Erro de autenticação:', userError);
-      throw new Error('Usuário inválido ou não autenticado. Faça o login novamente.');
-    }
-    // --- FIM DA MUDANÇA ---
-
-    // Agora, em vez de um MOCK_USER_ID, usamos o ID do usuário real que foi encontrado.
-    const userId = user.id;
-    console.log(`Iniciando conexão para o usuário: ${userId}`);
-
-    // O resto do código continua igual, mas agora usando o userId real.
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
-
-    const state = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-
-    const { error: insertError } = await supabaseAdmin
-      .from('mp_oauth_states')
-      .insert({ state: state, user_id: userId, expires_at: expiresAt });
-
-    if (insertError) {
-      console.error("Erro ao salvar o state:", insertError);
-      throw new Error('Não foi possível iniciar o processo de autorização.');
+    if (!code || !state) {
+      throw new Error('Parâmetros inválidos');
     }
 
     const clientId = Deno.env.get('MP_CLIENT_ID');
-    const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/mp-oauth-callback`;
+    const clientSecret = Deno.env.get('MP_CLIENT_SECRET');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const encryptionKey = Deno.env.get('TOKEN_ENCRYPTION_KEY');
 
-    const authUrl = new URL('https://auth.mercadopago.com/authorization');
-    authUrl.searchParams.set('client_id', clientId!);
-    authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set('platform_id', 'mp');
-    authUrl.searchParams.set('state', state);
-    authUrl.searchParams.set('redirect_uri', redirectUri);
+    if (!clientId || !clientSecret || !supabaseUrl || !serviceRoleKey || !encryptionKey) {
+      throw new Error('Erro de configuração interna do servidor.');
+    }
 
-    return new Response(JSON.stringify({ authorization_url: authUrl.toString() }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
+    const tokenUrl = 'https://api.mercadopago.com/oauth/token';
+    const redirectUri = `${supabaseUrl}/functions/v1/mp-oauth-callback`;
+
+    const body = new URLSearchParams({ /* ... corpo da requisição ... */ });
+    
+    const tokenResponse = await fetch(tokenUrl, { /* ... opções do fetch ... */ });
+    const tokenData = await tokenResponse.json();
+
+    if (!tokenResponse.ok) {
+        throw new Error(tokenData.message || 'Falha ao obter o token de acesso.');
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+
+    const { data: stateRow, error: stateError } = await supabaseAdmin
+      .from('mp_oauth_states')
+      .delete()
+      .eq('state', state)
+      .select('user_id')
+      .single();
+
+    if (stateError || !stateRow) {
+      throw new Error('State de autorização inválido.');
+    }
+    const userId = stateRow.user_id;
+
+    // --- LÓGICA DE VENDEDOR ADICIONADA AQUI ---
+
+    // 1. Procuramos se já existe um vendedor para este usuário
+    let { data: seller, error: sellerSelectError } = await supabaseAdmin
+      .from('sellers')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    if (sellerSelectError && sellerSelectError.code !== 'PGRST116') {
+      // PGRST116 = 'single() did not return a row', o que é normal se o vendedor não existe.
+      // Qualquer outro erro é um problema real.
+      throw new Error('Erro ao buscar perfil de vendedor: ' + sellerSelectError.message);
+    }
+    
+    // 2. Se não existir, criamos um novo vendedor
+    if (!seller) {
+      console.log(`Vendedor para o usuário ${userId} não encontrado. Criando um novo...`);
+      const { data: newSeller, error: sellerInsertError } = await supabaseAdmin
+        .from('sellers')
+        .insert({ user_id: userId, business_name: 'Nova Barbearia' }) // Você pode adicionar mais campos aqui
+        .select('id')
+        .single();
+      
+      if (sellerInsertError) {
+        throw new Error('Erro ao criar perfil de vendedor: ' + sellerInsertError.message);
+      }
+      seller = newSeller;
+    }
+
+    console.log(`Processando para o vendedor com ID: ${seller.id}`);
+
+    // --- FIM DA LÓGICA DE VENDEDOR ---
+
+    const { data: encryptedAccessToken, error: encryptErrorAccess } = await supabaseAdmin.rpc('encrypt_secret', { /* ... */ });
+    const { data: encryptedRefreshToken, error: encryptErrorRefresh } = await supabaseAdmin.rpc('encrypt_secret', { /* ... */ });
+
+    if (encryptErrorAccess || encryptErrorRefresh) {
+        throw new Error('Falha de segurança ao preparar credenciais.');
+    }
+
+    // Agora usamos o seller.id para salvar o token
+    const { error: upsertError } = await supabaseAdmin
+      .from('mp_oauth_tokens')
+      .upsert({
+        seller_id: seller.id, // VINCULADO AO VENDEDOR
+        user_id: userId,      // MANTEMOS O VÍNCULO COM O USUÁRIO TAMBÉM
+        mp_user_id: tokenData.user_id,
+        encrypted_access_token: encryptedAccessToken,
+        encrypted_refresh_token: encryptedRefreshToken,
+        public_key: tokenData.public_key,
+        expires_at: new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString(),
+      }, { onConflict: 'seller_id' }); // IMPORTANTE: onConflict agora é no seller_id
+
+    if (upsertError) {
+      throw new Error('Não foi possível armazenar as credenciais do vendedor.');
+    }
+
+    return new Response(
+      `<html><body><script>/* ... */</script><p>Autorização concluída com sucesso!</p></body></html>`,
+      { headers: { ...corsHeaders, 'Content-Type': 'text/html' } }
+    );
 
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500,
-    });
+    // ...
   }
 });
