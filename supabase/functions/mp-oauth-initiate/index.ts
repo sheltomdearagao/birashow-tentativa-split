@@ -12,40 +12,46 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Verifica se o usuário está autenticado
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new Error('Token de autorização não fornecido');
-    }
+    // --- ESTA É A MUDANÇA PRINCIPAL ---
+    // 1. Criamos um cliente Supabase que "herda" a autenticação do frontend.
+    // O token de acesso do usuário é passado no cabeçalho 'Authorization'.
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+    );
 
+    // 2. Usamos o cliente para pegar as informações do usuário que está logado.
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+
+    if (userError || !user) {
+      console.error('Erro de autenticação:', userError);
+      throw new Error('Usuário inválido ou não autenticado. Faça o login novamente.');
+    }
+    // --- FIM DA MUDANÇA ---
+
+    // Agora, em vez de um MOCK_USER_ID, usamos o ID do usuário real que foi encontrado.
+    const userId = user.id;
+    console.log(`Iniciando conexão para o usuário: ${userId}`);
+
+    // O resto do código continua igual, mas agora usando o userId real.
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Verifica o token do usuário
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
-    
-    if (userError || !user) {
-      throw new Error('Token inválido ou usuário não encontrado');
-    }
-
-    // Gera o 'state' (nossa chave secreta)
     const state = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // Expira em 10 minutos
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-    // Salva a chave no banco de dados para podermos conferir na volta
     const { error: insertError } = await supabaseAdmin
       .from('mp_oauth_states')
-      .insert({ state: state, user_id: user.id, expires_at: expiresAt });
+      .insert({ state: state, user_id: userId, expires_at: expiresAt });
 
     if (insertError) {
       console.error("Erro ao salvar o state:", insertError);
       throw new Error('Não foi possível iniciar o processo de autorização.');
     }
 
-    // Monta a URL para redirecionar o usuário para o Mercado Pago
     const clientId = Deno.env.get('MP_CLIENT_ID');
     const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/mp-oauth-callback`;
 
@@ -56,7 +62,6 @@ Deno.serve(async (req) => {
     authUrl.searchParams.set('state', state);
     authUrl.searchParams.set('redirect_uri', redirectUri);
 
-    // Retorna a URL completa para o frontend
     return new Response(JSON.stringify({ authorization_url: authUrl.toString() }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
