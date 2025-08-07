@@ -136,7 +136,8 @@ export function SchedulingCalendar({
         body: {
           service_ids: selectedServices,
           scheduled_date: format(selectedDate, 'yyyy-MM-dd'),
-          time_slot: selectedSlot
+          time_slot: selectedSlot,
+          app_base_url: window.location.origin
         }
       });
       if (preferenceError) {

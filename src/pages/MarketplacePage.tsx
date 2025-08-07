@@ -66,11 +66,11 @@ export default function MarketplacePage() {
 
       if (seller) {
         // Verificar se tem tokens do MP
-        const { data: tokens } = await supabase
+const { data: tokens } = await supabase
           .from('mp_oauth_tokens')
           .select('id')
-          .eq('seller_id', seller.id)
-          .single()
+          .eq('user_id', userId)
+          .maybeSingle()
 
         setIsSellerConnected(!!tokens)
       }

@@ -9,6 +9,7 @@ interface AppointmentRequest {
   service_ids: string[]
   scheduled_date: string
   time_slot: string
+  app_base_url?: string
 }
 
 Deno.serve(async (req) => {
@@ -37,7 +38,21 @@ Deno.serve(async (req) => {
       throw new Error('Unauthorized')
     }
 
-    const { service_ids, scheduled_date, time_slot }: AppointmentRequest = await req.json()
+const { service_ids, scheduled_date, time_slot, app_base_url }: AppointmentRequest = await req.json()
+
+    // Determine app base URL for Mercado Pago back_urls
+    const originHeader = req.headers.get('origin') || undefined
+    const refererHeader = req.headers.get('referer') || undefined
+    let refererOrigin: string | undefined = undefined
+    try {
+      refererOrigin = refererHeader ? new URL(refererHeader).origin : undefined
+    } catch (_) {
+      refererOrigin = undefined
+    }
+    const baseUrl = app_base_url || originHeader || refererOrigin
+    if (!baseUrl) {
+      throw new Error('Não foi possível determinar a URL base do aplicativo para os redirecionamentos.')
+    }
 
     if (!service_ids || service_ids.length === 0) {
       throw new Error('Nenhum serviço fornecido')
@@ -116,10 +131,10 @@ Deno.serve(async (req) => {
         name: customerProfile.full_name,
         email: user.email
       },
-      back_urls: {
-        success: `${req.headers.get('origin')}/agendamento-confirmado`,
-        failure: `${req.headers.get('origin')}/agendamento-erro`,
-        pending: `${req.headers.get('origin')}/agendamento-pendente`
+back_urls: {
+        success: `${baseUrl}/agendamento-confirmado`,
+        failure: `${baseUrl}/agendamento-erro`,
+        pending: `${baseUrl}/agendamento-pendente`
       },
       auto_return: 'approved',
       notification_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/mp-webhooks`,
@@ -144,10 +159,10 @@ Deno.serve(async (req) => {
       body: JSON.stringify(preferenceData)
     })
 
-    if (!preferenceResponse.ok) {
+if (!preferenceResponse.ok) {
       const errorText = await preferenceResponse.text()
       console.error('Erro ao criar preferência MP:', errorText)
-      throw new Error(`Erro ao criar preferência: ${preferenceResponse.status}`)
+      throw new Error(`Erro ao criar preferência: ${preferenceResponse.status} - ${errorText}`)
     }
 
     const preference = await preferenceResponse.json()
@@ -198,7 +213,7 @@ Deno.serve(async (req) => {
       const { data: appointment, error } = await supabase
         .from('appointments')
         .insert({
-          customer_id: customerProfile.id,
+          customer_id: user.id,
           service_id: serviceId,
           scheduled_time: new Date(`${scheduled_date} ${getTimeForSlot(time_slot)}`).toISOString(),
           status: 'pending_payment',
