@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instanciate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "12.2.12 (cd3cf9e)"
+    PostgrestVersion: "13.0.4"
   }
   public: {
     Tables: {
@@ -20,9 +20,12 @@ export type Database = {
           created_at: string
           customer_id: string
           id: string
+          notes: string | null
+          queue_position: number | null
           scheduled_time: string
           service_id: string
           status: string
+          time_slot: string | null
           total_price: number | null
           updated_at: string
         }
@@ -31,9 +34,12 @@ export type Database = {
           created_at?: string
           customer_id: string
           id?: string
+          notes?: string | null
+          queue_position?: number | null
           scheduled_time: string
           service_id: string
           status?: string
+          time_slot?: string | null
           total_price?: number | null
           updated_at?: string
         }
@@ -42,9 +48,12 @@ export type Database = {
           created_at?: string
           customer_id?: string
           id?: string
+          notes?: string | null
+          queue_position?: number | null
           scheduled_time?: string
           service_id?: string
           status?: string
+          time_slot?: string | null
           total_price?: number | null
           updated_at?: string
         }
@@ -134,21 +143,21 @@ export type Database = {
         Row: {
           created_at: string
           expires_at: string
-          id: string
+          id: number
           state: string
           user_id: string
         }
         Insert: {
           created_at?: string
           expires_at: string
-          id?: string
-          state: string
+          id?: number
+          state?: string
           user_id: string
         }
         Update: {
           created_at?: string
           expires_at?: string
-          id?: string
+          id?: number
           state?: string
           user_id?: string
         }
@@ -158,45 +167,37 @@ export type Database = {
         Row: {
           created_at: string
           encrypted_access_token: string
-          encrypted_refresh_token: string | null
-          expires_at: string | null
-          id: string
-          mp_user_id: string
+          encrypted_refresh_token: string
+          expires_at: string
+          id: number
+          mp_user_id: number
           public_key: string | null
-          seller_id: string
           updated_at: string
+          user_id: string
         }
         Insert: {
           created_at?: string
           encrypted_access_token: string
-          encrypted_refresh_token?: string | null
-          expires_at?: string | null
-          id?: string
-          mp_user_id: string
+          encrypted_refresh_token: string
+          expires_at: string
+          id?: number
+          mp_user_id: number
           public_key?: string | null
-          seller_id: string
           updated_at?: string
+          user_id: string
         }
         Update: {
           created_at?: string
           encrypted_access_token?: string
-          encrypted_refresh_token?: string | null
-          expires_at?: string | null
-          id?: string
-          mp_user_id?: string
+          encrypted_refresh_token?: string
+          expires_at?: string
+          id?: number
+          mp_user_id?: number
           public_key?: string | null
-          seller_id?: string
           updated_at?: string
+          user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "mp_oauth_tokens_seller_id_fkey"
-            columns: ["seller_id"]
-            isOneToOne: false
-            referencedRelation: "sellers"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       order_items: {
         Row: {
@@ -296,6 +297,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      processed_webhook_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          event_type: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          event_type: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          event_type?: string
+          id?: string
+        }
+        Relationships: []
       }
       products: {
         Row: {
@@ -536,7 +558,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      encrypt_secret: {
+        Args: { secret_value: string; encryption_key: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
