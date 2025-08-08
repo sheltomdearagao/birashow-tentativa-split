@@ -132,20 +132,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Buscar configuração de taxa do marketplace
-    const { data: marketplaceConfig } = await supabase
+    // Buscar sponsor_id (user id da conta da plataforma) na configuração
+    const { data: mpConfig } = await supabase
       .from('marketplace_config')
-      .select('default_fee_percentage, min_fee_amount, max_fee_percentage')
+      .select('mercado_pago_user_id')
       .eq('is_active', true)
-      .single()
-
-    // Verificar configuração personalizada do vendedor
-    const { data: sellerConfig } = await supabase
-      .from('seller_split_config')
-      .select('custom_fee_percentage')
-      .eq('seller_id', sellerId)
-      .eq('is_active', true)
-      .single()
+      .maybeSingle()
 
     // Taxa fixa de R$ 1,00 para a plataforma
     const applicationFee = 1.00
@@ -174,7 +166,8 @@ Deno.serve(async (req) => {
         order_id: 'ORDER_ID_PLACEHOLDER',
         seller_id: sellerId,
         application_fee: applicationFee
-      }
+      },
+      ...(mpConfig?.mercado_pago_user_id ? { sponsor_id: Number(mpConfig.mercado_pago_user_id) } : {})
     }
 
     console.log('Criando preferência:', JSON.stringify(preferenceData, null, 2))

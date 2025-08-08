@@ -122,6 +122,13 @@ const { service_ids, scheduled_date, time_slot, app_base_url }: AppointmentReque
     }
 
     // Criar preferência no Mercado Pago
+    // Buscar sponsor_id (user id da conta da plataforma) na configuração
+    const { data: mpConfig } = await supabase
+      .from('marketplace_config')
+      .select('mercado_pago_user_id')
+      .eq('is_active', true)
+      .maybeSingle()
+
     const preferenceData: any = {
       items: preferenceItems,
       payer: {
@@ -144,7 +151,8 @@ const { service_ids, scheduled_date, time_slot, app_base_url }: AppointmentReque
         type: 'appointment',
         seller_user_id: sellerUserId
       },
-      marketplace_fee: 1.00
+      marketplace_fee: 1.00,
+      ...(mpConfig?.mercado_pago_user_id ? { sponsor_id: Number(mpConfig.mercado_pago_user_id) } : {})
     }
 
     console.log('Criando preferência para agendamento:', JSON.stringify(preferenceData, null, 2))
