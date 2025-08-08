@@ -96,42 +96,73 @@ const { service_ids, scheduled_date, time_slot, app_base_url }: AppointmentReque
       })
     }
 
-    // Usar as credenciais do Mercado Pago dos secrets
-    const clientId = Deno.env.get('MP_CLIENT_ID')
-    const clientSecret = Deno.env.get('MP_CLIENT_SECRET')
+    // Tentar usar o token do vendedor (split): pegar um vendedor ativo conectado
+    let accessToken: string | null = null
+    let sellerInfo: any = null
 
-    if (!clientId || !clientSecret) {
-      throw new Error('Credenciais do Mercado Pago não configuradas')
+    try {
+      const { data: sellers } = await supabase
+        .from('sellers')
+        .select('id, user_id, business_name, is_active')
+        .eq('is_active', true)
+        .limit(1)
+
+      if (sellers && sellers.length > 0) {
+        sellerInfo = sellers[0]
+        const { data: tokenRow } = await supabase
+          .from('mp_oauth_tokens')
+          .select('encrypted_access_token, mp_user_id')
+          .eq('user_id', sellerInfo.user_id)
+          .maybeSingle()
+
+        if (tokenRow?.encrypted_access_token) {
+          // Os tokens estão armazenados em base64. Decodificar para string original
+          accessToken = atob(tokenRow.encrypted_access_token)
+          console.log('Usando token do vendedor para criar preferência de agendamento (split). Vendedor:', sellerInfo.id)
+        }
+      }
+    } catch (e) {
+      console.warn('Não foi possível obter token do vendedor, caindo para token da aplicação.', e)
     }
 
-    // Obter access token público (para agendamentos não usamos tokens de vendedor específico)
-    const tokenResponse = await fetch('https://api.mercadopago.com/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: clientId,
-        client_secret: clientSecret,
-      }),
-    })
+    // Se não encontrou token de vendedor, usar client_credentials (sem split)
+    if (!accessToken) {
+      const clientId = Deno.env.get('MP_CLIENT_ID')
+      const clientSecret = Deno.env.get('MP_CLIENT_SECRET')
 
-    if (!tokenResponse.ok) {
-      throw new Error('Erro ao obter token do Mercado Pago')
+      if (!clientId || !clientSecret) {
+        throw new Error('Credenciais do Mercado Pago não configuradas')
+      }
+
+      const tokenResponse = await fetch('https://api.mercadopago.com/oauth/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: clientId,
+          client_secret: clientSecret,
+        }),
+      })
+
+      if (!tokenResponse.ok) {
+        throw new Error('Erro ao obter token do Mercado Pago')
+      }
+
+      const tokenData = await tokenResponse.json()
+      accessToken = tokenData.access_token
+      console.log('Criando preferência com token da aplicação (sem split)')
     }
-
-    const tokenData = await tokenResponse.json()
-    const accessToken = tokenData.access_token
 
     // Criar preferência no Mercado Pago
-    const preferenceData = {
+    const preferenceData: any = {
       items: preferenceItems,
       payer: {
         name: customerProfile.full_name,
         email: user.email
       },
-back_urls: {
+      back_urls: {
         success: `${baseUrl}/agendamento-confirmado`,
         failure: `${baseUrl}/agendamento-erro`,
         pending: `${baseUrl}/agendamento-pendente`
@@ -146,6 +177,11 @@ back_urls: {
         time_slot,
         type: 'appointment'
       }
+    }
+
+    // Se estiver usando token do vendedor, aplicar taxa da plataforma (R$1,00)
+    if (sellerInfo && accessToken) {
+      preferenceData.marketplace_fee = 1.00
     }
 
     console.log('Criando preferência para agendamento:', JSON.stringify(preferenceData, null, 2))

@@ -87,11 +87,22 @@ Deno.serve(async (req) => {
       throw new Error('Todos os produtos devem ser do mesmo vendedor')
     }
 
+    // Buscar dados do vendedor (para obter user_id e mp_user_id)
+    const { data: seller } = await supabase
+      .from('sellers')
+      .select('id, user_id, mp_user_id')
+      .eq('id', sellerId)
+      .single()
+
+    if (!seller) {
+      throw new Error('Vendedor não encontrado')
+    }
+
     // Buscar tokens do vendedor
     const { data: sellerTokens } = await supabase
       .from('mp_oauth_tokens')
-      .select('encrypted_access_token, seller_id')
-      .eq('seller_id', sellerId)
+      .select('encrypted_access_token')
+      .eq('user_id', seller.user_id)
       .single()
 
     if (!sellerTokens) {
@@ -139,21 +150,15 @@ Deno.serve(async (req) => {
     // Taxa fixa de R$ 1,00 para a plataforma
     const applicationFee = 1.00
 
-    // Buscar collector_id do vendedor
-    const { data: sellerMPData } = await supabase
-      .from('mp_oauth_tokens')
-      .select('mp_user_id')
-      .eq('seller_id', sellerId)
-      .single()
-
-    if (!sellerMPData?.mp_user_id) {
-      throw new Error('Dados do Mercado Pago do vendedor não encontrados')
+    // Verificar mp_user_id do vendedor (opcional)
+    if (!seller.mp_user_id) {
+      console.warn('mp_user_id do vendedor não encontrado. Prosseguindo mesmo assim.')
     }
 
     // Criar preferência no Mercado Pago com split payment
     const preferenceData = {
       items: preferenceItems,
-      application_fee: applicationFee,
+      marketplace_fee: applicationFee,
       payment_methods: {
         excluded_payment_types: [],
         installments: 12
