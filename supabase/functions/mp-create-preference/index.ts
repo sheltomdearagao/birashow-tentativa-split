@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
     const { data: seller } = await supabase
       .from('sellers')
       .select('id, user_id, mp_user_id')
-      .eq('id', sellerId)
+      .eq('user_id', sellerId)
       .single()
 
     if (!seller) {

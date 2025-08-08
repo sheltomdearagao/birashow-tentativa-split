@@ -72,7 +72,7 @@ const { service_ids, scheduled_date, time_slot, app_base_url }: AppointmentReque
     // Buscar serviços
     const { data: services, error: servicesError } = await supabase
       .from('services')
-      .select('id, name, description, price, duration_minutes')
+      .select('id, name, description, price, duration_minutes, seller_id')
       .in('id', service_ids)
       .eq('is_active', true)
 
@@ -96,63 +96,29 @@ const { service_ids, scheduled_date, time_slot, app_base_url }: AppointmentReque
       })
     }
 
-    // Tentar usar o token do vendedor (split): pegar um vendedor ativo conectado
-    let accessToken: string | null = null
-    let sellerInfo: any = null
-
-    try {
-      const { data: sellers } = await supabase
-        .from('sellers')
-        .select('id, user_id, business_name, is_active')
-        .eq('is_active', true)
-        .limit(1)
-
-      if (sellers && sellers.length > 0) {
-        sellerInfo = sellers[0]
-        const { data: tokenRow } = await supabase
-          .from('mp_oauth_tokens')
-          .select('encrypted_access_token, mp_user_id')
-          .eq('user_id', sellerInfo.user_id)
-          .maybeSingle()
-
-        if (tokenRow?.encrypted_access_token) {
-          // Os tokens estão armazenados em base64. Decodificar para string original
-          accessToken = atob(tokenRow.encrypted_access_token)
-          console.log('Usando token do vendedor para criar preferência de agendamento (split). Vendedor:', sellerInfo.id)
-        }
-      }
-    } catch (e) {
-      console.warn('Não foi possível obter token do vendedor, caindo para token da aplicação.', e)
+    // Determinar vendedor a partir dos serviços selecionados
+    const sellerUserIds = Array.from(new Set((services as any[]).map(s => s.seller_id).filter(Boolean))) as string[]
+    if (sellerUserIds.length === 0) {
+      throw new Error('Serviços sem vendedor associado. Configure o vendedor do(s) serviço(s).')
     }
+    if (sellerUserIds.length > 1) {
+      throw new Error('Selecione serviços de um único vendedor por transação.')
+    }
+    const sellerUserId = sellerUserIds[0]
 
-    // Se não encontrou token de vendedor, usar client_credentials (sem split)
-    if (!accessToken) {
-      const clientId = Deno.env.get('MP_CLIENT_ID')
-      const clientSecret = Deno.env.get('MP_CLIENT_SECRET')
+    // Obter token do vendedor (obrigatório para split)
+    let accessToken: string | null = null
+    const { data: tokenRow } = await supabase
+      .from('mp_oauth_tokens')
+      .select('encrypted_access_token')
+      .eq('user_id', sellerUserId)
+      .maybeSingle()
 
-      if (!clientId || !clientSecret) {
-        throw new Error('Credenciais do Mercado Pago não configuradas')
-      }
-
-      const tokenResponse = await fetch('https://api.mercadopago.com/oauth/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          grant_type: 'client_credentials',
-          client_id: clientId,
-          client_secret: clientSecret,
-        }),
-      })
-
-      if (!tokenResponse.ok) {
-        throw new Error('Erro ao obter token do Mercado Pago')
-      }
-
-      const tokenData = await tokenResponse.json()
-      accessToken = tokenData.access_token
-      console.log('Criando preferência com token da aplicação (sem split)')
+    if (tokenRow?.encrypted_access_token) {
+      accessToken = atob(tokenRow.encrypted_access_token)
+      console.log('Usando token do vendedor para criar preferência de agendamento (split). Vendedor user_id:', sellerUserId)
+    } else {
+      throw new Error('Vendedor não conectado ao Mercado Pago.')
     }
 
     // Criar preferência no Mercado Pago
@@ -175,13 +141,10 @@ const { service_ids, scheduled_date, time_slot, app_base_url }: AppointmentReque
         service_ids: service_ids.join(','),
         scheduled_date,
         time_slot,
-        type: 'appointment'
-      }
-    }
-
-    // Se estiver usando token do vendedor, aplicar taxa da plataforma (R$1,00)
-    if (sellerInfo && accessToken) {
-      preferenceData.marketplace_fee = 1.00
+        type: 'appointment',
+        seller_user_id: sellerUserId
+      },
+      marketplace_fee: 1.00
     }
 
     console.log('Criando preferência para agendamento:', JSON.stringify(preferenceData, null, 2))
