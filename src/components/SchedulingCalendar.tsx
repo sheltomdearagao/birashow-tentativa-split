@@ -115,7 +115,14 @@ export function SchedulingCalendar({
     return isMonday(date) || isSunday(date) || date < new Date();
   };
   const handleSchedule = async () => {
-    if (!selectedDate || !selectedSlot || !profile) return;
+    if (!selectedDate || !selectedSlot) {
+      toast({
+        title: "Selecione data e turno",
+        description: "Escolha a data e o turno para continuar.",
+        variant: "destructive",
+      })
+      return;
+    }
     setIsBooking(true);
     try {
       // Get slot details
